@@ -318,10 +318,16 @@ def project_root(project=None):
 
 
 def capture_status(project=None):
+    from honey import delta_service
+    codex = delta_service.project_status(project)
     config = project_root(project) / ".delta/settings.json"
     result = {"configured": False, "mode": "manual", "path": str(config),
-              "enabled": False, "applies_to": "new_claude_sessions", "codex_capture": False}
+              "enabled": False, "applies_to": "new_claude_sessions", "codex_capture": codex['enabled'],
+              "codex": codex}
     if not config.exists():
+        if codex['enabled']:
+            result.update(configured=True, enabled=True, mode='private', path=codex['path'],
+                          applies_to='codex_visible_messages_after_activation')
         return result
     try:
         if config.stat().st_size > 65536:
@@ -336,6 +342,13 @@ def capture_status(project=None):
         result.update(configured="mode" in policy, enabled=mode != "manual", mode=mode)
     except (OSError, ValueError, AttributeError):
         result.update(mode="invalid", error="invalid_capture_settings")
+    if codex['enabled']:
+        claude_enabled = result['enabled']
+        result['claude'] = {key: result[key] for key in ('configured', 'enabled', 'mode', 'path')}
+        result.update(configured=True, enabled=True,
+                      applies_to='codex_and_configured_claude_sessions' if claude_enabled else 'codex_visible_messages_after_activation')
+        if not claude_enabled:
+            result.update(mode='private', path=codex['path'])
     return result
 
 
@@ -472,8 +485,19 @@ def status(project=None, reference=None, source=None, external_id=None):
 
 
 def main(argv):
+    if argv and argv[0] == 'capture':
+        from honey import delta_service
+        try:
+            return delta_service.main(argv[1:])
+        except DeltaError as exc:
+            print(json.dumps(exc.payload()))
+            return 1
+        except (OSError, subprocess.SubprocessError):
+            print(json.dumps({'error': 'capture_service_failed', 'message': 'The local capture operation failed; inspect capture status and service logs.'}))
+            return 1
     parser = argparse.ArgumentParser(prog="honey delta", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser('capture', help='Enable, inspect or stop automatic private Codex capture')
     health = commands.add_parser("status", help="Check CLI, account, capture policy and optional thread readiness")
     health.add_argument("--project")
     health.add_argument("--thread", type=_reference)

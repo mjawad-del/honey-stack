@@ -10,7 +10,7 @@ metadata:
 
 # Delta history
 
-Use existing Delta history as optional context on Claude Code and Codex. The separately installed official Delta plugin owns Claude capture; native Codex capture remains unsupported. History commands only read; `setup --apply` changes local capture policy and `attach` updates a local handoff.
+Use existing Delta history as optional context on Claude Code and Codex. The separately installed official Delta plugin owns Claude capture; Honey's opted-in transcript observer records visible Codex conversation text. History commands only read; `setup --apply` changes Claude capture policy, `capture enable` activates private Codex capture, and `attach` updates a local handoff.
 
 Run commands with this skill's bundled runtime: `python3 "<plugin root>/bin/honey" delta ...`. The plugin root is two directories above this skill's directory. Examples below abbreviate that prefix as `honey`.
 
@@ -67,6 +67,10 @@ Without a supplied reference, write the normal local handoff. Do not guess a thr
 Done when: the human summary survives attachment/restoration, drift is known and each reference is verified or explicitly unavailable.
 
 ## 4. Capture setup
+
+For requested Codex capture, use `honey delta capture enable --project /workspace --organization org_ID`, then inspect `honey delta capture status --project /workspace`. Enabling uploads future visible conversation text privately and installs a macOS per-user observer; it supports plain directories as well as Git workspaces. The observer uses real Codex transcripts, not simulated hooks, and does not require native hook approval. Keep the explicit project scope; never enable all projects by implication.
+
+Verify a real post-activation message and its Delta readback before reporting working capture. Status distinguishes local acknowledgements from cloud upload. `capture disable --project /workspace` stops Honey submitting new records; Delta can still upload records already accepted locally, and uploaded history is not deleted. For other Unix service managers (not Windows), configure with `enable --no-service` and run `capture run`; never call the policy alone an active observer. Unsupported transcript formats must be reported. This path excludes instructions, reasoning, tools, images, inherited subagents and repository files. Do not imply full filesystem recovery or collaborative agent control.
 
 For a setup request, preview the repository policy first:
 
