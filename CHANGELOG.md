@@ -10,6 +10,9 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- Prevent inferred inspection mode from blocking authorized edits or execution evidence.
+
 ## [0.17.0] - 2026-11-01
 
 ### Added

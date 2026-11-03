@@ -2,7 +2,7 @@
 
 How honey records what a task may touch and which checks prove it. Back to the [README](../README.md).
 
-Hooks retain a bounded task record: inspection or execution, workspace, targets and required checks. “Continue” and status questions retain the task. Explicit inspection stays read-only for recognized edit operations until the user asks for changes. This is an evidence aid, not a permission grant or a complete sandbox; natural-language classification and command recognition are conservative heuristics.
+Hooks retain a bounded task record: inspection or execution, workspace, targets and required checks. “Continue” and status questions retain the task. Task classification is advisory and does not block edits or grant permission. Follow the user's scope and host permissions; natural-language classification and command recognition are heuristics.
 
 ```bash
 honey task status --json
