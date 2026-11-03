@@ -77,8 +77,71 @@ def public_text(value, limit):
     return value.replace('@', '(at)')
 
 
+def reconcile(settings=None):
+    """Read exact published issues; closure retires a suggestion, never applies it.
+
+    Caller owns the RSI lock. Only closures made here may be reopened here;
+    explicit local apply/skip/never decisions remain authoritative.
+    """
+    settings = config() if settings is None else settings
+    result = {'closed': [], 'reopened': [], 'blocked': []}
+    if not settings.get('enabled'):
+        return result
+    proposals = [p for p in review.all_proposals()
+                 if (p.get('github_issue') or {}).get('state') == 'published'
+                 and (p.get('status') == 'pending' or
+                      p.get('status') == 'applied' and p.get('decision_source') == 'automatic' or
+                      p.get('status') == 'closed' and p.get('decision_source') == 'github_issue')]
+    if not proposals:
+        return result
+    try:
+        repo = settings['repository']
+        if repository().lower() != repo.lower():
+            raise ValueError('Publication origin changed; enable publication again to confirm it')
+        pages = json.loads(gh('api', '--paginate', '--slurp',
+                             f'repos/{repo}/issues?state=all&per_page=100'))
+        issues = [issue for page in pages for issue in page if 'pull_request' not in issue]
+        error = None
+    except Exception as exc:
+        issues, error = [], text.redact(str(exc), 300)
+    for proposal in proposals:
+        link = proposal['github_issue']
+        try:
+            if error:
+                raise ValueError(error)
+            url = link.get('url', '')
+            if (link.get('repository', '').lower() != repo.lower() or
+                    not re.fullmatch(r'https://github\.com/' + re.escape(repo) + r'/issues/[0-9]+', url, re.I)):
+                raise ValueError('Suggestion issue identity does not match the configured repository')
+            found = [i for i in issues if i.get('html_url', '').lower() == url.lower()]
+            if len(found) != 1 or not found[0].get('title', '').startswith('RSI ' + proposal['id'] + ': '):
+                raise ValueError('Exact published suggestion issue could not be verified')
+            issue = found[0]
+            state = issue.get('state', '').lower()
+            if state not in ('open', 'closed'):
+                raise ValueError('Suggestion issue has an unknown state')
+            link.update(remote_state=state, state_reason=issue.get('state_reason'), checked_at=text.now())
+            link.pop('reconciliation_error', None)
+            if state == 'closed' and proposal['status'] == 'pending':
+                link['closure'] = {'state_reason': issue.get('state_reason'), 'observed_at': text.now()}
+                proposal.update(status='closed', decision_source='github_issue', decided=text.now())
+                result['closed'].append(proposal['id'])
+            elif state == 'open' and proposal['status'] == 'closed':
+                proposal.update(status='pending', decided=None)
+                proposal.pop('decision_source', None)
+                result['reopened'].append(proposal['id'])
+        except Exception as exc:
+            link.update(reconciliation_error=text.redact(str(exc), 300), checked_at=text.now())
+            result['blocked'].append({'id': proposal['id'], 'reason': link['reconciliation_error']})
+        save(proposal)
+    return result
+
+
 def suggestions(settings):
     result = {'published': [], 'blocked': []}
+    reconciled = reconcile(settings)
+    if any(reconciled.values()):
+        result['reconciled'] = reconciled
     if not settings.get('suggestions'):
         return result
     pending = [p for p in review.pending() if p.get('type') in ('toolkit_fix', 'skill_new', 'upstream_port')
@@ -128,6 +191,11 @@ def suggestions(settings):
             proposal.setdefault('github_issue', {}).update(state='blocked', error=error, updated=text.now())
             save(proposal)
             result['blocked'].append({'id': proposal['id'], 'reason': error})
+    if result['published']:
+        refreshed = reconcile(settings)
+        if any(refreshed.values()):
+            for key, values in refreshed.items():
+                result.setdefault('reconciled', {'closed': [], 'reopened': [], 'blocked': []})[key].extend(values)
     return result
 
 
@@ -177,6 +245,9 @@ def prepare(proposal, settings):
 
 
 def publish(proposal, settings):
+    remote_block = review.remote_block_reason(proposal)
+    if remote_block:
+        raise ValueError(remote_block)
     if repository().lower() != settings['repository'].lower():
         raise ValueError('Publication origin changed; enable publication again to confirm it')
     state = proposal.get('publication') or {}

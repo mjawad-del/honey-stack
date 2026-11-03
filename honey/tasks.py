@@ -35,6 +35,26 @@ STATUS = re.compile(r'^\s*(?:what(?:\s+is|\'s)\s+(?:the\s+)?(?:status|progress)|
 NAME = re.compile(r'^[a-z][a-z0-9-]{0,39}$')
 
 
+def _uninstall_request(prompt):
+    """Infer removal from its target; UI nouns and location text are not apps."""
+    clauses = re.split(r'[!?;\n]|\.(?:\s|$)|\band\s+(?=(?:remove|uninstall)\b)', prompt, flags=re.I)
+    for clause in clauses:
+        action = re.search(r'\b(remove|uninstall)\s+(.+)', clause, re.I)
+        if not action:
+            continue
+        target = re.split(r'\s+(?:from|in|on|and|then|with)\b', action[2], maxsplit=1, flags=re.I)[0]
+        target = re.sub(r'\bcompletely\b', '', target, flags=re.I).strip(' ,\"\'')
+        # These words identify an interface edit even in phrases like "uninstall menu item".
+        if re.search(r'\b(button|logo|icon|sidebar|label|menu|dialog|page|header|footer|link|option)\b', target, re.I):
+            continue
+        if action[1].lower() == 'uninstall' and target:
+            return True
+        if (re.search(r'(?:\.app|\bapps?|\bapplications?|\bsoftware)$', target, re.I)
+                or re.match(r'(?:(?:the|this|that|all)\s+)?(?:apps?|applications?|software)\s+\S+', target, re.I)):
+            return True
+    return False
+
+
 def _absolute(path, cwd):
     return os.path.abspath(os.path.join(cwd, os.path.expanduser(path)))
 
@@ -72,7 +92,7 @@ def advance(ctx, prompt):
                 ctx.dirty = True
         return
     mode = 'inspect' if explicit or question else 'execute'
-    operation = ('uninstall' if re.search(r'\b(uninstall|remove).{0,60}(app|software|completely)', prompt, re.I)
+    operation = ('uninstall' if _uninstall_request(prompt)
                  else 'startup' if re.search(r'\b(startup|login items?)\b', prompt, re.I)
                  else 'code' if re.search(r'\b(fix|implement|code|parser|function|bug|refactor|build)\b', prompt, re.I)
                  else 'generic')

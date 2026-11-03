@@ -10,6 +10,10 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- Keep UI-removal requests on ordinary verification while recognizing explicit application uninstalls.
+- Reconcile published suggestion issues before automatic improvement work, preserving closure reasons without claiming the suggestion was implemented.
+
 ## [0.17.1] - 2026-11-03
 
 ### Fixed

@@ -128,6 +128,9 @@ def run(settings):
     pending.sort(key=lambda p:(p.get('delivery') or {}).get('updated',''))
     for proposal in pending[:20]:
         try:
+            remote_block = review.remote_block_reason(proposal)
+            if remote_block:
+                raise ValueError(remote_block)
             if publish.repository().lower()!=settings['repository'].lower():
                 raise ValueError('Publication repository changed')
             current=proposal.get('delivery') or {}
