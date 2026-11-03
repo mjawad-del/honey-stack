@@ -49,10 +49,14 @@ def run() -> dict:
 def _run() -> dict:
     if not autonomy.enabled():
         return {'skipped': 'autonomy disabled'}
+    from honey.rsi import publish
+    publish.reconcile()
     state_file = paths.path('state', 'improvement-last.json')
     previous = store.read_json(state_file, {}) or {}
     pending = review.pending()
-    pending_patches = [p for p in pending if p.get('type') == 'skill_patch']
+    pending_patches = [p for p in pending if p.get('type') == 'skill_patch' and
+                       (not review.remote_block_reason(p) or
+                        (p.get('application') or {}).get('state') == 'sync_pending')]
     if any(p.get('attempt_state') != 'blocked' or
            (p.get('application') or {}).get('state') == 'sync_pending' for p in pending_patches):
         return {'skipped': 'waiting for pending evaluated patch'}
@@ -65,11 +69,14 @@ def _run() -> dict:
     verified_quotes = {}
     attempted = previous.get('targets', {})
     diagnosed_skills = {_skill(p) for p in review.all_proposals()
-                        if p.get('type') in ('toolkit_fix', 'upstream_port') and p.get('status') != 'applied' and
-                        (p.get('child') or p.get('status') in ('skipped', 'never'))}
+                        if p.get('type') in ('toolkit_fix', 'upstream_port') and
+                        (review.remote_block_reason(p) or p.get('status') != 'applied' and
+                         (p.get('child') or p.get('status') in ('skipped', 'never', 'closed')))}
     unavailable_skills = diagnosed_skills | {_skill(p) for p in pending_patches}
     diagnosed_skills.update(unavailable_skills)
     for p in pending:
+        if review.remote_block_reason(p):
+            continue
         if p.get('type') == 'toolkit_fix' and not p.get('repair') and not p.get('child'):
             skill = _skill(p)
             if skill and skill not in unavailable_skills:

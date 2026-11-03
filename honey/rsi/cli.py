@@ -26,7 +26,11 @@ def status(as_json=False):
     unknown_costs = sum(c.get("usd") is None for c in month_rows)
     ev_dir = paths.path("events")
     n_sessions = sum(len(fs) for _, _, fs in os.walk(ev_dir)) if os.path.isdir(ev_dir) else 0
-    out = {"home": paths.home(), "bullets": by, "pending_review": len(review.pending()), "brief_chars": len(txt),
+    suggestion_issues = [dict(id=p['id'], status=p.get('status'), **{
+        key: p['github_issue'][key] for key in
+        ('url', 'remote_state', 'state_reason', 'closure', 'checked_at', 'reconciliation_error')
+        if key in p['github_issue']}) for p in review.all_proposals() if p.get('github_issue')]
+    out = {"suggestion_issues": suggestion_issues, "home": paths.home(), "bullets": by, "pending_review": len(review.pending()), "brief_chars": len(txt),
            "brief_ids": ids, "sessions_observed": n_sessions, "usd_this_month": round(month, 4),
            "autonomous": autonomy.enabled(),
            "publication": publish.config(),

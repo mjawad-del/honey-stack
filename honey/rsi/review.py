@@ -40,6 +40,18 @@ def pending() -> list:
     return [p for p in all_proposals() if p.get("status") == "pending"]
 
 
+def remote_block_reason(proposal: dict) -> str:
+    """A linked issue closure or unreadable state cannot authorize automatic work."""
+    parents = [p for p in all_proposals() if p.get('child') == proposal.get('id')]
+    for item in [proposal, *parents]:
+        issue = item.get('github_issue') or {}
+        if issue.get('remote_state') == 'closed':
+            return 'published suggestion issue is closed'
+        if issue.get('reconciliation_error'):
+            return 'published suggestion issue could not be checked: ' + issue['reconciliation_error']
+    return ''
+
+
 def add(tier: int, kind: str, title: str, rationale: str, fix: str, evidence: list, fingerprint: str) -> dict:
     """Queue a proposal unless the same finding is already queued, skipped or refused."""
     fp = hashlib.sha1(fingerprint.encode()).hexdigest()[:12]

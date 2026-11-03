@@ -45,11 +45,13 @@ Settings live in `~/.honey/config.json`. All keys are optional:
 
 - `holdout_rate: 0.1` leaves the brief out of 10% of sessions, so `/rsi coach` can measure whether rules help.
 - `budgets.enabled: false` removes Honey's rolling weekly/monthly dollar caps and the dollar limits passed to drafting and evaluation calls. Usage is still recorded; unknown usage stays unknown. The daily improvement cadence, reflection rate limits, validation, and provider account limits still apply. `honey rsi status --json` reports `budget_caps_enabled`.
-- **Privacy:** no telemetry. Only redacted snippets of ≤300 characters are stored. Network use is limited to your model provider and the radar's public `git fetch`.
+- **Privacy:** RSI keeps its session evidence local and redacts stored snippets. Network use includes the configured model provider, radar's public `git fetch`, and opt-in GitHub publication and issue reconciliation. Published suggestions omit raw session evidence and personal preferences.
 
 Enable autonomous application with `honey rsi autonomy on`. It persists in `~/.honey/config.json`; other installations keep review mode until enabled. Session-end catchup and the weekly job apply up to 20 pending proposals per pass. `honey rsi autonomy off` returns to manual review. `rsi off` still pauses observation and jobs for the current session.
 
 With autonomy enabled, session-end and startup catchup jobs attempt one evidence-backed skill improvement every 24 hours. There is no background daemon: a session triggers due work. Existing validated proposals still apply each pass. Failures rotate behind other eligible work; a blocked patch does not freeze unrelated skills. Pending sync recovery pauses new drafting until the installed copy is consistent.
+
+When publication is enabled, automatic work first checks the exact published suggestion issues against the configured GitHub repository. A verified closed issue retires its local proposal as `closed`, preserving GitHub's reason; it does not count as an implemented fix. A verified reopening restores only proposals closed by this reconciliation, never a manual skip or refusal. Closed or unreadable linked suggestions also defer their child patches. GitHub failures preserve local decisions and defer linked work until verification succeeds. `honey rsi status --json` exposes `suggestion_issues` with the recorded remote state, closure and reconciliation errors without making network calls or changing decisions.
 
 Skill diagnoses are routed to the existing patcher using verified user quotes. Repeated requests can produce a new skill only with actual requests from at least two sessions and positive/negative trigger evaluations. Keyword-only suggestions and unsupported runtime diagnoses remain pending. Genuine user evidence is evaluated separately from external tool output; older quarantined records are recovered only against their original user events.
 

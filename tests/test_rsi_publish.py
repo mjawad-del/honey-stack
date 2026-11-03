@@ -1,4 +1,6 @@
 """Real Git publication with a disposable remote; GitHub is the only API fixture."""
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -9,7 +11,7 @@ from unittest.mock import patch as mock
 
 from helpers import REPO
 from honey import paths
-from honey.rsi import autonomy, patch, publish, review, store
+from honey.rsi import autonomy, cli, delivery, improve, patch, publish, review, store
 
 
 class Publication(unittest.TestCase):
@@ -75,7 +77,7 @@ class Publication(unittest.TestCase):
             title = args[args.index('--title') + 1]
             body = Path(args[args.index('--body-file') + 1]).read_text()
             self.issues.append({'url': 'https://github.com/example/honey/issues/' + str(self.issue_creates),
-                                'title': title, 'body': body})
+                                'title': title, 'body': body, 'state': 'open', 'state_reason': None})
             return self.issues[-1]['url']
         if args[:2] == ('pr', 'list'):
             return json.dumps(self.prs)
@@ -256,6 +258,161 @@ class Publication(unittest.TestCase):
         return review.add(1, kind, 'workflow suggestion', 'Review routing.', 'Add a focused regression test.',
                           [{'q': 'PRIVATE QUOTE'}], kind)
 
+    def test_closed_published_issue_stops_autorepair_without_claiming_applied(self):
+        proposal = self.suggestion()
+        self.run_publish()
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        with mock.object(autonomy, 'apply', return_value='unexpected repair') as apply, mock.object(patch, '_validate_eval'):
+            autonomy.run()
+        saved = store.read_json(paths.path('proposals', proposal['id'] + '.json'))
+        self.assertEqual(saved['status'], 'closed')
+        self.assertEqual(saved['github_issue']['state_reason'], 'not_planned')
+        self.assertEqual(saved['decision_source'], 'github_issue')
+        self.assertNotIn(proposal['id'], [p['id'] for p in review.pending()])
+        apply.assert_not_called()
+        self.assertEqual(self.issue_creates, 1)
+
+    def test_closed_issue_is_reconciled_before_daily_generation_and_not_recreated(self):
+        proposal = self.suggestion()
+        proposal['title'] = 'debug skill: diagnosed workflow'
+        publish.save(proposal)
+        self.run_publish()
+        self.issues[0].update(state='closed', state_reason='completed')
+        with mock.object(patch, 'evidence_for', return_value=[{'q': 'verified'}]), \
+                mock.object(patch, 'candidates', return_value=[('debug', {})]), \
+                mock.object(patch, 'propose', return_value={'proposed': 'unexpected'}) as generate:
+            improve.run()
+        generate.assert_not_called()
+        saved = store.read_json(paths.path('proposals', proposal['id'] + '.json'))
+        self.assertEqual(saved['status'], 'closed')
+        self.assertEqual(saved['github_issue']['state_reason'], 'completed')
+        self.assertEqual(self.suggestion()['id'], proposal['id'])
+
+    def test_verified_reopen_restores_only_remotely_closed_work(self):
+        proposal = self.suggestion()
+        self.run_publish()
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        self.run_publish()
+        self.assertEqual(review.pending(), [])
+        self.issues[0].update(state='open', state_reason='reopened')
+        self.run_publish()
+        self.assertEqual([p['id'] for p in review.pending()], [proposal['id']])
+        review.decide(proposal['id'], 'never')
+        self.run_publish()
+        self.assertEqual(review.pending(), [])
+
+    def test_reconciliation_failure_preserves_status_and_defers_automatic_repair(self):
+        proposal = self.suggestion()
+        self.run_publish()
+        with mock.object(publish, 'gh', side_effect=RuntimeError('authentication unavailable')), \
+                mock.object(autonomy, 'apply', return_value='unexpected repair') as apply:
+            result = autonomy.run()
+        saved = store.read_json(paths.path('proposals', proposal['id'] + '.json'))
+        self.assertEqual(saved['status'], 'pending')
+        self.assertIn('authentication unavailable', saved['github_issue']['reconciliation_error'])
+        self.assertEqual(result['applied'], [])
+        apply.assert_not_called()
+
+    def test_closed_parent_blocks_child_application_publication_and_delivery(self):
+        parent = self.suggestion()
+        self.run_publish()
+        parent = store.read_json(paths.path('proposals', parent['id'] + '.json'))
+        parent['child'] = self.p['id']
+        publish.save(parent)
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        publish.reconcile()
+        self.p['status'] = 'pending'
+        self.save()
+        with mock.object(autonomy, 'apply', return_value='unexpected repair') as apply:
+            result = autonomy.run()
+        apply.assert_not_called()
+        self.assertEqual(result['applied'], [])
+        self.p['status'] = 'applied'
+        self.p.pop('publication', None)
+        self.save()
+        with mock.object(publish, 'prepare', side_effect=RuntimeError('unexpected preparation')) as prepare:
+            result = publish.run()
+        prepare.assert_not_called()
+        self.assertIn('closed', result['blocked'][0]['reason'])
+        self.p['publication'] = {'state': 'published'}
+        self.save()
+        with mock.object(delivery, 'merge', side_effect=RuntimeError('unexpected merge')) as merge, \
+                mock.object(delivery, 'install_release') as install:
+            result = delivery.run(dict(publish.config(), auto_merge=True))
+        merge.assert_not_called()
+        install.assert_not_called()
+        self.assertIn('closed', result['blocked'][0]['reason'])
+
+    def test_missing_or_mismatched_issue_never_closes_local_proposal(self):
+        proposal = self.suggestion()
+        self.run_publish()
+        original = dict(self.issues[0], state='closed', state_reason='not_planned')
+        cases = [[], [dict(original, url='https://github.com/other/repo/issues/1')],
+                 [dict(original, title='Unrelated issue')], [dict(original, state='unknown')],
+                 [dict(original, pull_request={})]]
+        for issues in cases:
+            with self.subTest(issues=issues):
+                self.issues = issues
+                result = publish.reconcile()
+                saved = store.read_json(paths.path('proposals', proposal['id'] + '.json'))
+                self.assertEqual(saved['status'], 'pending')
+                self.assertEqual(len(result['blocked']), 1)
+        self.issues = [dict(original, state='open', state_reason=None)]
+        publish.reconcile()
+        saved = store.read_json(paths.path('proposals', proposal['id'] + '.json'))
+        self.assertNotIn('reconciliation_error', saved['github_issue'])
+
+    def test_status_exposes_reconciliation_without_network_or_state_changes(self):
+        proposal = self.suggestion()
+        self.run_publish()
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        publish.reconcile()
+        before = Path(paths.path('proposals', proposal['id'] + '.json')).read_bytes()
+        output = io.StringIO()
+        with mock.object(publish, 'gh') as gh, contextlib.redirect_stdout(output):
+            cli.status(as_json=True)
+        gh.assert_not_called()
+        self.assertEqual(Path(paths.path('proposals', proposal['id'] + '.json')).read_bytes(), before)
+        issue = json.loads(output.getvalue())['suggestion_issues'][0]
+        self.assertEqual(issue['status'], 'closed')
+        self.assertEqual(issue['state_reason'], 'not_planned')
+
+    def test_closed_child_does_not_starve_unrelated_daily_generation(self):
+        parent = self.suggestion()
+        parent.update(title='debug skill: closed diagnosis', child=self.p['id'])
+        publish.save(parent)
+        self.run_publish()
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        self.p['status'] = 'pending'
+        self.save()
+        with mock.object(patch, 'evidence_for', return_value=[{'q': 'verified'}]), \
+                mock.object(patch, 'candidates', return_value=[('review', {})]), \
+                mock.object(patch, 'propose', return_value={'proposed': 'new-review'}) as generate:
+            improve.run()
+        generate.assert_called_once_with('review', 'scorecard')
+
+    def test_automatically_applied_parent_still_blocks_delivery_when_issue_closes(self):
+        parent = self.suggestion()
+        self.run_publish()
+        parent = store.read_json(paths.path('proposals', parent['id'] + '.json'))
+        parent.update(status='applied', decision_source='automatic', child=self.p['id'],
+                      title='debug skill: closed diagnosis')
+        publish.save(parent)
+        self.issues[0].update(state='closed', state_reason='not_planned')
+        publish.reconcile()
+        saved = store.read_json(paths.path('proposals', parent['id'] + '.json'))
+        self.assertEqual(saved['status'], 'applied')
+        self.assertEqual(saved['github_issue'].get('remote_state'), 'closed')
+        with mock.object(patch, 'evidence_for', return_value=[{'q': 'verified'}]), \
+                mock.object(patch, 'candidates', return_value=[('debug', {})]), \
+                mock.object(patch, 'propose') as generate:
+            improve.run()
+        generate.assert_not_called()
+        with mock.object(delivery, 'merge', side_effect=RuntimeError('unexpected merge')) as merge:
+            result = delivery.run(dict(publish.config(), auto_merge=True))
+        merge.assert_not_called()
+        self.assertIn('closed', result['blocked'][0]['reason'])
+
     def test_suggestions_publish_when_local_auto_application_is_off(self):
         self.suggestion()
         autonomy.configure(False)
@@ -292,10 +449,11 @@ class Publication(unittest.TestCase):
     def test_existing_issue_is_reused_after_local_receipt_loss(self):
         suggestion = self.suggestion()
         self.run_publish()
-        self.issues[0]['state'] = 'CLOSED'
+        self.issues[0].update(state='closed', state_reason='not_planned')
         store.write_json(paths.path('proposals', suggestion['id'] + '.json'), suggestion)
         self.run_publish()
         self.assertEqual(self.issue_creates, 1)
+        self.assertEqual(store.read_json(paths.path('proposals', suggestion['id'] + '.json'))['status'], 'closed')
 
     def test_personal_proposals_and_old_opt_in_never_create_issues(self):
         for kind in ('instr_line', 'instr_edit', 'instr_remove', 'guard', 'skill_patch'):

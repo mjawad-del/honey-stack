@@ -199,6 +199,9 @@ def run() -> dict:
 
 def validate_sources(proposal: dict) -> None:
     """Do not resurrect a rule forgotten or superseded since proposal creation."""
+    remote_block = review.remote_block_reason(proposal)
+    if remote_block:
+        raise Deferred(remote_block)
     sources = list(proposal.get("bullet_ids") or [])
     if proposal.get("type") in ("instr_edit", "instr_remove") and not sources:
         raise ValueError("instruction audit has no source learning IDs; re-audit or apply manually")
