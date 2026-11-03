@@ -162,9 +162,6 @@ def subagent_start(ctx) -> dict:
 
 def pre_tool(ctx) -> dict:
     event = tool_events.normalize(ctx.payload)
-    reason = tasks.protect(ctx.state, event)
-    if reason:
-        return hookio.pretool("deny", reason)
     if not ctx.sub:
         tasks.start_tool(ctx, event)
     if event['kind'] != 'shell':

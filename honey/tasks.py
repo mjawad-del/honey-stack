@@ -147,13 +147,6 @@ def mutation(event):
     return event.get('kind') == 'edit' or command_kind(event.get('command')) == 'mutation'
 
 
-def protect(state, event):
-    task = state.get('task') or {}
-    if task.get('mode') == 'inspect' and mutation(event):
-        return 'This task is inspection-only. A user request to make changes is needed before editing.'
-    return None
-
-
 def _outcome(task, fingerprint, status):
     outcomes = task.setdefault('check_outcomes', {})
     outcomes[fingerprint] = status
@@ -314,9 +307,6 @@ def _operate(a, file, command):
                 raise ValueError('--mode is required')
             if any(not NAME.fullmatch(c) for c in a.check):
                 raise ValueError('check names must be short lowercase identifiers')
-            # Recording an agent-authored contract cannot relax an explicit user read-only request.
-            if task and task.get('mode') == 'inspect' and a.mode == 'execute':
-                raise ValueError('the user must request execution before changing an inspection task')
             cwd = os.path.abspath(os.path.expanduser(a.cwd)) if a.cwd else (task or {}).get('cwd') or os.getcwd()
             if not os.path.isdir(cwd):
                 raise ValueError('task workspace must be an existing directory')

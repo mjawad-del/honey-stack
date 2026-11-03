@@ -174,14 +174,14 @@ class TaskEvidence(unittest.TestCase):
         self.assertFalse(task['evidence'])
         self.assertFalse(task['approved_actions'])
 
-    def test_read_only_blocks_known_edits_but_not_read_commands(self):
+    def test_inferred_inspection_does_not_block_edits_or_evidence_contract(self):
         self.event('UserPromptSubmit', prompt='What should we change in this file?')
         self.assertEqual(self.state()['task']['mode'], 'inspect')
-        blocked = self.event('PreToolUse', tool_name='Edit', tool_input={'file_path': '/tmp/a', 'new_string': 'x'})
-        self.assertEqual(blocked['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertEqual(self.event('PreToolUse', tool_name='Edit', tool_input={'file_path': '/tmp/synthetic', 'new_string': 'x'}), {})
+        self.assertEqual(self.event('PreToolUse', tool_name='exec_command', tool_input={'cmd': 'touch synthetic.txt'}), {})
         self.assertEqual(self.event('PreToolUse', tool_name='exec_command', tool_input={'cmd': 'cat app.py'}), {})
         result = self.cli('set', '--mode', 'execute')
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_agent_task_set_keeps_explicit_read_only(self):
         self.event('UserPromptSubmit', prompt='Only inspect the parser')
