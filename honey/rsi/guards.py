@@ -24,16 +24,21 @@ def save(gs: list) -> None:
 
 
 def check(command: str, last_prompt: str):
-    """(message, action) of the first active guard matching this command, else (None, None). Never raises."""
+    """Prefer an applicable block over advice, otherwise return the first warning."""
+    warning = None
     for g in load():
         if g.get("status") != "active":
             continue
         try:
             if re.search(g["regex"], command or "") and not (g.get("unless_prompt") and re.search(g["unless_prompt"], last_prompt or "", re.I)):
-                return g["message"], g.get("action", "warn")
+                match = g["message"], g.get("action", "warn")
+                if match[1] == "block":
+                    return match
+                if warning is None:
+                    warning = match
         except re.error:
             continue
-    return None, None
+    return warning or (None, None)
 
 
 def fired(gid: str) -> None:

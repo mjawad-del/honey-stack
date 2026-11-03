@@ -10,6 +10,9 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- Keep learned guard warnings from becoming hard edit or command denials on Codex, and clarify that task inspection records do not restrict authorized edits.
+
 ## [0.18.0] - 2026-11-03
 
 ### Added
