@@ -28,7 +28,7 @@ def statusline() -> int:
 
 def main(argv: list) -> int:
     if not argv or argv[0] in ("-h", "--help"):
-        print("usage: honey install | uninstall | update | autoupdate | doctor | bootstrap --agent claude|codex | task status|set|verify|run | sync | rsi … | delta status|search|read|summary|recall|setup|attach|restore | statusline | --version | hook --agent claude|codex")
+        print("usage: honey install | uninstall | update | autoupdate | doctor | bootstrap --agent claude|codex | task status|set|verify|run | sync | rsi … | delta status|search|read|summary|recall|setup|capture|attach|restore | statusline | --version | hook --agent claude|codex")
         return 0
     cmd, rest = argv[0], argv[1:]
     if cmd == 'bootstrap':

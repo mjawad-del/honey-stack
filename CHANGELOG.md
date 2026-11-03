@@ -10,6 +10,10 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- Opt-in private Codex conversation capture with a per-user macOS observer, durable delivery records, explicit upload status and workspace-level disable controls.
+- Capture works in plain workspaces as well as Git repositories and excludes pre-activation history, inherited subagents, injected instructions, reasoning, tools and repository files.
+
 ## [0.17.2] - 2026-11-03
 
 ### Fixed

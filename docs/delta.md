@@ -16,7 +16,7 @@ Delta 0.22.0 or newer and a signed-in Delta account are required to read history
 |---|---|---|
 | Search, read and recall existing Delta history | Yes | Yes |
 | Attach history to a local handoff | Yes | Yes |
-| Record new sessions | Separate official Delta plugin | Not provided |
+| Record new sessions | Separate official Delta plugin | Opted-in Honey transcript observer |
 
 Use `/honey:delta` in Claude Code or `$delta` in Codex to follow the same workflow through the agent. These are Honey commands. The official capture plugin has its own `/delta` commands.
 
@@ -68,6 +68,28 @@ A local thread ID does not prove that a share link exists. Honey preserves an ac
 
 ## Choose capture deliberately
 
+### Codex conversation capture
+
+For automatic private capture of future visible Codex messages, choose the organization returned by `delta org list`, then enable the current workspace:
+
+```bash
+honey delta capture enable --project /workspace --organization org_ID
+honey delta capture status --project /workspace
+honey delta capture disable --project /workspace
+```
+
+The workspace may be a Git repository or a plain directory. Activation is stored privately under `~/.honey/delta/`, never in the repository. On macOS, enable installs a per-user LaunchAgent that checks Codex transcripts every 15 seconds through the stable installed Honey launcher. Other Unix platforms can use `enable --no-service`, then run `honey delta capture run` under their existing service manager. `run --once` performs one scan. Windows capture is unsupported; non-macOS service operation has not been verified. `uninstall-service` removes the macOS observer; per-workspace `disable` stops Honey recording new messages for that workspace without stopping other enabled workspaces.
+
+The observer consumes actual local Codex session records, independently of native hook approval. It accepts supported root-session metadata and visible user/assistant text after activation. It excludes inherited subagent history, injected instructions, reasoning, tool arguments/results, images and repository files. Unsupported transcript shapes fail closed. This is conversation history recording, not collaborative remote control of the running agent.
+
+Private capture uploads conversation text to Delta's servers. It does not share it with the organization. A durable local outbox retains immutable records until Delta acknowledges them; interrupted deliveries replay the same sequence numbers. Once disable returns, Honey stops submitting records for that workspace. Delta can still finish uploading records it already accepted locally. Re-enabling starts a new capture epoch, without replaying the disabled interval or a previous epoch's unsent records. Existing uploaded history is not deleted by disabling capture.
+
+`capture status` separates enabled policy, registered observer, recent scan, local acknowledgements and observed cloud upload state. An enabled policy does not prove successful recording. A local acknowledgement does not prove server receipt, and same-machine readback does not prove recovery on another computer. Native Honey hook health remains a separate status.
+
+Transient delivery failures back off. Errors that Delta marks non-retryable pause automatic attempts; resolve the reported condition, then use `honey delta capture run --once --retry`. Missing or moved source transcripts keep their pending-record count visible as blocked instead of silently losing it. Never delete local outbox state to reset a producer sequence.
+
+### Claude capture
+
 The [official Claude plugin](https://delta.dev/docs/cli/claude-code) performs recording. After installing it, `/delta setup` offers these repository policies:
 
 | Mode | Behavior |
@@ -114,7 +136,11 @@ If the native app reports a connection or startup problem, open it with `delta o
 ```bash
 python3 tests/test_delta.py
 python3 tests/test_delta_handoff.py
+python3 tests/test_delta_capture.py
+python3 tests/test_delta_service.py
 python3 tests/qa_delta.py --live
 ```
 
 The live QA command creates only private, projectless synthetic history and archives it afterwards. It never attaches your repository or records your conversation. For paired before/after measurements and the larger acceptance matrix, follow the [QA guide](../evals/webmcp/README.md#recall-and-handoff-comparison). Cloud upload, local retrieval and cross-machine recovery are separate claims.
+
+Recording uses the [Delta plugin protocol](https://delta.dev/docs/cli/build-a-plugin), contract 8. The existing lookup commands work on another authenticated machine with access to the same private thread; verify exact content there before claiming cross-machine recovery.
