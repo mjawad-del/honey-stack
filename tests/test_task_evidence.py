@@ -139,6 +139,30 @@ class TaskEvidence(unittest.TestCase):
         self.check(code=1, call='fail')
         self.assertEqual(self.event('Stop', last_assistant_message='Fixed. Checks run: tests pass.').get('decision'), 'block')
 
+    def test_ui_removal_keeps_normal_verification(self):
+        for prompt in ('Remove the app logo from the header', 'Remove this button completely',
+                       'Remove the application sidebar', 'Remove the software version label',
+                       'Remove the uninstall button', 'Remove the app icon from the dock',
+                       'Remove a button from the app', 'Remove the login page completely from the app',
+                       'Remove the uninstall menu item', 'Remove the uninstall confirmation dialog'):
+            with self.subTest(prompt=prompt):
+                self.event('UserPromptSubmit', prompt=prompt)
+                task = self.state()['task']
+                self.assertEqual(task['mode'], 'execute')
+                self.assertEqual(task['operation'], 'generic')
+                self.assertEqual(task['checks'], ['verification'])
+
+    def test_actual_app_removal_keeps_uninstall_checks(self):
+        for prompt in ('Uninstall VLC', 'Remove Example.app completely',
+                       'Remove the VLC app from my Mac', 'Remove this application',
+                       'Remove /Applications/Example.app', 'Remove VLC.app and its helper files',
+                       'Remove the application VLC', 'Remove the app VLC', 'Remove all apps except VLC'):
+            with self.subTest(prompt=prompt):
+                self.event('UserPromptSubmit', prompt=prompt)
+                task = self.state()['task']
+                self.assertEqual(task['operation'], 'uninstall')
+                self.assertEqual(task['checks'], ['application', 'helpers', 'startup', 'preserved-data'])
+
     def test_uninstall_requires_all_declared_checks_and_absence_is_measured(self):
         self.event('UserPromptSubmit', prompt='Remove Example.app completely')
         app = Path(self.tmp.name, 'Example.app')

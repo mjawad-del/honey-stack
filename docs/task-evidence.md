@@ -17,4 +17,6 @@ The default code check recognizes direct test/lint commands. Explicit checks lin
 
 For `--operation uninstall`, required checks are `application`, `helpers`, `startup` and `preserved-data`. Declare concrete targets with `--target`; `task verify --check application --absent /Applications/Example.app` measures and rechecks absence. `--present` checks existence. Helpers and startup require checks of their actual registrations, and preserved data requires an explicit check of what should remain. `--operation startup` requires its resulting registration to be checked.
 
+Automatic classification distinguishes removing an application from editing its interface. “Remove the app logo” or “remove this button completely” uses ordinary verification; “uninstall VLC” or “remove Example.app” uses uninstall checks. Ambiguous targets still need an explicit task operation; classification does not establish permission to delete them.
+
 Known shell/read/edit payloads, including `exec_command` with `cmd`, are normalized. JavaScript wrappers remain opaque unless the host delivers supported inner events. Missing hooks, unobserved external edits and concurrent last-writer-wins session updates limit the evidence; `doctor` reports delivery and coverage without claiming runtime enforcement.
