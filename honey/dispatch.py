@@ -177,8 +177,12 @@ def pre_tool(ctx) -> dict:
         if not ctx.sub:
             _init_state(ctx)
             observe.record(ctx, "guard", reason=msg[:120], decision=action, learned=True)
-        if action == "block" or ctx.agent == "codex":  # Codex PreToolUse has no advisory context; be conservative
+        if action == "block":
             return hookio.pretool("deny", msg)
+        # A host without advisory context must not turn advice into a permission
+        # restriction. The warning is still recorded above for diagnostics.
+        if ctx.agent == "codex":
+            return {}
         return hookio.context("PreToolUse", msg)
     bypass = ctx.payload.get("permission_mode") in ("bypassPermissions", "dontAsk")
     decision = "deny" if (ctx.agent == "codex" or sev == "deny" or bypass) else "ask"

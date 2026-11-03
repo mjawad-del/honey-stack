@@ -15,7 +15,7 @@ from honey.rsi import signals, store, text
 CHECKS = {'code': ['verification'], 'generic': ['verification'],
           'uninstall': ['application', 'helpers', 'startup', 'preserved-data'],
           'startup': ['startup']}
-# Read-only is opt-in: only an explicit request (or a pure question) blocks edits.
+# Inspection is descriptive only; this classification never blocks edits.
 INSPECT = re.compile(r"\b(read.only|only (?:tell|explain|inspect|review)|(?:first|just) tell|"
                      r"(?:recommendations?|suggestions?|advice|ideas|feedback|analysis|opinions?) only\b|"
                      r"no (?:code |file )?changes\b|without (?:changing|editing|modifying)\b|"

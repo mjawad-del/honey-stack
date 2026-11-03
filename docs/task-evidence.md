@@ -11,7 +11,9 @@ honey task verify --check tests --tool-call <actual-test-call-id>
 honey task verify --check lint --tool-call <actual-lint-call-id>
 ```
 
-Replace paths and call IDs with the actual values. Codex uses `CODEX_THREAD_ID`; otherwise add `--agent claude --session <session-id>` to each command. Bind the project before running its checks. `task set` starts a new bounded contract; it cannot promote an existing inspection task to execution without a user request.
+Replace paths and call IDs with the actual values. Codex uses `CODEX_THREAD_ID`; otherwise add `--agent claude --session <session-id>` to each command. Bind the project before running its checks. `task set` records the selected mode and starts a new bounded contract; it does not decide whether the user authorized an action. A stale inspection record must not prevent carrying out an authorized edit.
+
+Learned guard warnings are advisory, never permission denials. Claude receives the warning as hook context; Codex records it in Honey's event log without making a permission decision. Explicit learned block rules and the separate destructive-command guard retain their existing behavior. Neither task bookkeeping nor warnings override the user's scope or the host's permissions.
 
 The default code check recognizes direct test/lint commands. Explicit checks link a fresh successful result; the agent must still check that the command proves the named requirement. Later edits, potentially mutating shell commands, failed reruns and incomplete results invalidate proof. When start events are delivered, checks started before a mutation or in a previous task cannot verify the new state. Completion claims without evidence trigger one reminder per evidence cycle; honest unresolved reports and inspection answers are allowed.
 
