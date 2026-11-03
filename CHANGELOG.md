@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-03
+
 ### Fixed
 - Prevent inferred inspection mode from blocking authorized edits or execution evidence.
 
@@ -207,7 +209,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/umararshad4/honey-stack/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/umararshad4/honey-stack/compare/v0.16.4...v0.17.0
 [0.16.4]: https://github.com/umararshad4/honey-stack/compare/v0.16.3...v0.16.4
 [0.16.3]: https://github.com/umararshad4/honey-stack/compare/v0.16.2...v0.16.3
