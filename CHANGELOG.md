@@ -10,6 +10,11 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-11-07
+
+### Changed
+- fix(hooks): make every honey rule advisory, never blocking (#47)
+
 ## [0.18.1] - 2026-11-03
 
 ### Fixed
@@ -226,7 +231,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v0.18.2...HEAD
+[0.18.2]: https://github.com/umararshad4/honey-stack/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/umararshad4/honey-stack/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/umararshad4/honey-stack/compare/v0.17.2...v0.18.0
 [0.17.2]: https://github.com/umararshad4/honey-stack/compare/v0.17.1...v0.17.2
