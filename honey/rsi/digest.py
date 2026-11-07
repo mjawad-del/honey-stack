@@ -65,8 +65,10 @@ def build(key: str, rows: list = None):
                 line = f"t{t} tool_fail {r.get('tool')}: \"{r.get('err', '')}\""
         elif e == "guard":
             line = f"t{t} guard {r.get('decision')}: {r.get('reason')}"
-        elif e == "receipt_nag":
-            line = f"t{t} receipt-gate blocked a stop"
+        elif e == "receipt_gap":
+            line = f"t{t} receipt gap ({r.get('kind')}, advisory, stop not blocked): {r.get('reason', '')}"
+        elif e == "receipt_nag":  # legacy events from before the gate became advisory
+            line = f"t{t} receipt-gate blocked a stop (legacy event, reason not recorded)"
         elif e == "note":
             line = f"t{t} user note saved {r.get('id')} [{r.get('scope')}]"
         elif e == "stop":

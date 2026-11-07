@@ -66,7 +66,8 @@ pre = {"session_id": "g3", "cwd": "/tmp", "hook_event_name": "PreToolUse", "tool
 assert hook("claude", pre) == {}    # proposed, not active yet
 guards.set_status(guards.load()[0]["id"], "active")
 hook("claude", {"session_id": "g3", "cwd": "/tmp", "hook_event_name": "UserPromptSubmit", "prompt": "fix the typo"})
-assert hook("claude", pre)["hookSpecificOutput"]["permissionDecision"] == "deny"
+g = hook("claude", pre)["hookSpecificOutput"]
+assert "permissionDecision" not in g and "commit only when" in g["additionalContext"], g
 hook("claude", {"session_id": "g3", "cwd": "/tmp", "hook_event_name": "UserPromptSubmit", "prompt": "ok commit it"})
 assert hook("claude", pre) == {}
 

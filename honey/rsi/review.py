@@ -170,7 +170,7 @@ def audit() -> list:
         found.append(queue(1, "toolkit_fix", "Receipt Stop hook blocks Q&A turns that changed nothing",
                          "It tails the transcript and blocks any stop without a marker word, including pure questions; marker "
                          "words inside tool output also satisfy it.",
-                         "Replace with honey's receipt gate: only after a turn that edited files, at most once per turn.",
+                         "Remove it; honey's end-of-turn check is advisory and never blocks a stop.",
                          [{"q": "settings.json Stop → completion-receipt.py"}], "completion-receipt"))
     sl = (settings.get("statusLine") or {}).get("command", "")
     if re.search(r"/plugins/cache/[^\"']+/\d+\.\d+\.\d+/", sl):

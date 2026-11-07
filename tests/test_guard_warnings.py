@@ -46,21 +46,12 @@ class GuardWarnings(unittest.TestCase):
         self.assertTrue(any(e.get('e') == 'guard' and e.get('learned') and e.get('decision') == 'warn'
                             for e in events))
 
-    def test_explicit_learned_block_remains_a_block(self):
+    def test_stored_block_action_is_only_a_warning(self):
         self.configure('block')
-        for agent in ('codex', 'claude'):
-            self.assertEqual(self.pretool(agent)['hookSpecificOutput']['permissionDecision'], 'deny')
-
-    def test_warning_cannot_hide_a_later_block(self):
-        self.configure('warn')
-        warning = guards.load()[0]
-        block = dict(warning, id='g-block', action='block', message='A separate blocking rule applies.')
-        for rules in ([warning, block], [block, warning]):
-            guards.save(rules)
-            for agent in ('codex', 'claude'):
-                out = self.pretool(agent)['hookSpecificOutput']
-                self.assertEqual(out['permissionDecision'], 'deny')
-                self.assertEqual(out['permissionDecisionReason'], block['message'])
+        self.assertEqual(self.pretool('codex'), {})
+        out = self.pretool('claude')['hookSpecificOutput']
+        self.assertNotIn('permissionDecision', out)
+        self.assertIn('Consider adding', out['additionalContext'])
 
     def test_exempt_block_does_not_hide_a_warning(self):
         self.configure('warn')
@@ -73,13 +64,13 @@ class GuardWarnings(unittest.TestCase):
                              'hook_event_name': 'UserPromptSubmit', 'prompt': 'approved'})
                 self.assertNotIn('permissionDecision', self.pretool(agent).get('hookSpecificOutput', {}))
 
-    def test_destructive_command_guard_remains_effective(self):
+    def test_destructive_command_guard_is_advisory(self):
         self.configure('warn')
-        for agent in ('codex', 'claude'):
-            out = self.pretool(agent, command='rm -rf /')
-            self.assertEqual(out['hookSpecificOutput']['permissionDecision'], 'deny')
-            self.assertIn('recursive force deletion', out['hookSpecificOutput']['permissionDecisionReason'])
-
+        self.assertEqual(self.pretool('codex', command='rm -rf /'), {})
+        for mode in ('default', 'bypassPermissions'):
+            out = self.pretool('claude', command='rm -rf /', mode=mode)['hookSpecificOutput']
+            self.assertNotIn('permissionDecision', out)
+            self.assertIn('recursive force deletion', out['additionalContext'])
 
 if __name__ == '__main__':
     unittest.main()

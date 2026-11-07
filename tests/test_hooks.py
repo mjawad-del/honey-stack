@@ -28,19 +28,20 @@ sw = ctx_text(hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt=
 assert "HONEY MODE explain" in sw and "`🍯 HONEY · explain`" in sw, sw
 assert "HONEY MODE" not in ctx_text(hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="add a normal mode toggle")))
 
-# guard: ask on Claude default, deny under bypass and on Codex; quoted text passes
+# guard: advisory only, never a permission decision, in any mode or agent; quoted text passes
 pre = dict(C, hook_event_name="PreToolUse", tool_name="Bash", tool_input={"command": "git push -f origin main"}, permission_mode="default")
-assert hook("claude", pre)["hookSpecificOutput"]["permissionDecision"] == "ask"
-assert hook("claude", dict(pre, permission_mode="bypassPermissions"))["hookSpecificOutput"]["permissionDecision"] == "deny"
-assert hook("codex", pre)["hookSpecificOutput"]["permissionDecision"] == "deny"
+for mode in ("default", "bypassPermissions"):
+    g = hook("claude", dict(pre, permission_mode=mode))["hookSpecificOutput"]
+    assert "permissionDecision" not in g and "honey guard (advisory)" in g["additionalContext"], g
+assert hook("codex", pre) == {}
 assert hook("claude", dict(pre, tool_input={"command": 'echo "rm -rf /"'})) == {}
 
-# receipt gate: nothing on a Q&A turn, block once after an edit turn, then not again
+# stop is never blocked: Q&A turn, edit turn without receipt, edit turn with receipt
 hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="what does this function do"))
 assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="It parses dates.")) == {}
 hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="fix the date bug"))
 hook("claude", dict(C, hook_event_name="PostToolUse", tool_name="Edit", tool_input={"file_path": "/tmp/a.py", "new_string": "x = 1"}))
-assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="Fixed it."))["decision"] == "block"
+assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="Fixed it.")) == {}
 assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="Fixed it.", stop_hook_active=True)) == {}
 hook("claude", dict(C, hook_event_name="PostToolUse", tool_name="Bash", tool_input={"command": "pytest"}, tool_response={"exit_code": 0}))
 assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="Fixed.\nChecks run: pytest pass.")) == {}
@@ -48,7 +49,7 @@ assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="Fi
 # secret scan on new text only
 sec = hook("claude", dict(C, hook_event_name="PostToolUse", tool_name="Write",
                           tool_input={"file_path": "/tmp/cfg.py", "content": 'API_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"'}))
-assert sec.get("decision") == "block" and "sk-proj" not in sec["reason"], sec
+assert "decision" not in sec and "sk-proj" not in json.dumps(sec) and sec["hookSpecificOutput"]["additionalContext"], sec
 assert hook("claude", dict(C, hook_event_name="PostToolUse", tool_name="Write",
                            tool_input={"file_path": "/tmp/cfg.py", "content": 'API_KEY = os.environ["API_KEY"]'})) == {}
 
@@ -66,13 +67,13 @@ assert again.endswith(nxt.split("\n\n", 1)[1]) and again.startswith("Context was
 hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="honey off"))
 assert hook("claude", dict(C, hook_event_name="Stop", last_assistant_message="ok")) == {}
 r = hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="rsi off"))
-assert r.get("decision") == "block"
+assert "decision" not in r and "paused" in ctx_text(r), r
 
 # events recorded with redaction; outcome attributed
 import glob
 rows = [json.loads(l) for f in glob.glob(os.path.join(H, "events", "*", "claude-s1.jsonl")) for l in open(f)]
 kinds = [r["e"] for r in rows]
-assert "start" in kinds and "guard" in kinds and "receipt_nag" in kinds and "note" in kinds, kinds
+assert "start" in kinds and "guard" in kinds and "receipt_gap" in kinds and "note" in kinds, kinds
 assert any(r["e"] == "skill_outcome" and r["outcome"] == "neg" for r in rows), [r for r in rows if r["e"].startswith("skill")]
 assert any(r["e"] == "prompt" and "correction" in r.get("sig", []) for r in rows)
 assert not any("sk-proj" in json.dumps(r) for r in rows)

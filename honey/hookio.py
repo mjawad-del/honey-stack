@@ -24,11 +24,3 @@ def emit(obj: dict) -> None:
 def context(event: str, text: str) -> dict:
     return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text[:MAX_CONTEXT]}}
 
-
-def block(reason: str) -> dict:
-    return {"decision": "block", "reason": reason}
-
-
-def pretool(decision: str, reason: str) -> dict:
-    return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": decision,
-                                   "permissionDecisionReason": reason}}

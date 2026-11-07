@@ -116,7 +116,8 @@ def user_prompt(ctx) -> dict:
         ctx.state["rsi_off"] = m.group(1).lower() == "off"
         ctx.dirty = True
         observe.record(ctx, "cmd", cmd=f"rsi {m.group(1).lower()}")
-        return hookio.block("honey RSI " + ("paused for this session (say `rsi on` to resume)." if ctx.state["rsi_off"] else "observing again."))
+        return hookio.context("UserPromptSubmit", "honey RSI " + ("paused for this session (say `rsi on` to resume)." if ctx.state["rsi_off"] else "observing again.")
+                              + " Acknowledge in one short line.")
     args = modes.parse_command(prompt)
     if args:
         ctx.dirty = True
@@ -176,21 +177,19 @@ def pre_tool(ctx) -> dict:
             return {}
         if not ctx.sub:
             _init_state(ctx)
-            observe.record(ctx, "guard", reason=msg[:120], decision=action, learned=True)
-        if action == "block":
-            return hookio.pretool("deny", msg)
-        # A host without advisory context must not turn advice into a permission
-        # restriction. The warning is still recorded above for diagnostics.
+            observe.record(ctx, "guard", reason=msg[:120], decision="warn", learned=True)
+        # Honey never restricts permissions: learned rules are advice only. Hosts without
+        # advisory PreToolUse context (Codex) get nothing; the event is still recorded above.
         if ctx.agent == "codex":
             return {}
         return hookio.context("PreToolUse", msg)
-    bypass = ctx.payload.get("permission_mode") in ("bypassPermissions", "dontAsk")
-    decision = "deny" if (ctx.agent == "codex" or sev == "deny" or bypass) else "ask"
     if not ctx.sub:
         _init_state(ctx)
-        observe.record(ctx, "guard", reason=reason[:120], decision=decision)
-    suffix = " If the user really intends this, they can run it themselves in a terminal." if decision == "deny" else ""
-    return hookio.pretool(decision, "honey guard: " + reason + suffix)
+        observe.record(ctx, "guard", reason=reason[:120], decision="warn", severity=sev)
+    if ctx.agent == "codex":
+        return {}
+    return hookio.context("PreToolUse", "honey guard (advisory): " + reason
+                          + " Proceed only if this is what the user intends.")
 
 
 def post_tool(ctx) -> dict:
@@ -213,7 +212,7 @@ def post_tool(ctx) -> dict:
             scan_payload.update(tool_name='apply_patch', tool_input={'patch': event['command']})
         reason = secrets.scan(scan_payload)
         if reason:
-            out = hookio.block(reason)
+            out = hookio.context("PostToolUse", reason)
     if not ctx.sub:
         _init_state(ctx)
         tasks.record_tool(ctx, event)
@@ -234,11 +233,10 @@ def stop(ctx) -> dict:
     ctx.dirty = True
     observe.record(ctx, "stop", len=len(msg), done=st["claims_done"] or None, ends_q=st["ends_q"] or None,
                    edited=ctx.state.get("edited") or None)
-    reason = receipt.check(ctx.payload, ctx.state)
-    if reason:
-        observe.record(ctx, "receipt_nag")
-        return hookio.block(reason)
-    return {}
+    gap = receipt.check(ctx.payload, ctx.state)
+    if gap:
+        observe.record(ctx, "receipt_gap", kind=gap[0], reason=gap[1][:200])
+    return {}  # a stop is never blocked
 
 
 def session_end(ctx) -> dict:

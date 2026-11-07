@@ -35,6 +35,15 @@ class TaskEvidence(unittest.TestCase):
         self.event('PostToolUse', tool_name='apply_patch', tool_input={'patch': '*** Begin Patch\n*** Update File: app.py\n@@\n-old\n+new\n*** End Patch'},
                    tool_response={'exit_code': 0}, tool_use_id='edit-1')
 
+    def gap(self, message):
+        """Stop is never blocked; return the advisory gap honey recorded for it, or None."""
+        self.assertEqual(self.event('Stop', last_assistant_message=message), {})
+        rows = [json.loads(line) for path in Path(self.tmp.name, 'events').glob('*/codex-task.jsonl')
+                for line in path.read_text().splitlines()]
+        stops = [i for i, r in enumerate(rows) if r['e'] == 'stop']
+        after = rows[stops[-1] + 1:] if stops else []
+        return next((r['reason'] for r in after if r['e'] == 'receipt_gap'), None)
+
     def check(self, code=0, call='test-1', cwd=None):
         return self.event('PostToolUse', tool_name='exec_command', tool_input={'cmd': 'python -m unittest', 'workdir': cwd or self.tmp.name},
                           tool_response={} if code is None else {'exit_code': code}, tool_use_id=call)
@@ -96,17 +105,16 @@ class TaskEvidence(unittest.TestCase):
         self.event('UserPromptSubmit', prompt='yes')
         self.assertEqual(self.state()['task']['mode'], 'execute')
 
-    def test_stop_gate_nags_once_across_both_reasons_and_later_edits(self):
+    def test_stop_gap_recorded_once_per_edit_turn_and_never_blocks(self):
         self.begin_code()
-        blocked = self.event('Stop', last_assistant_message='Fixed.')
-        self.assertEqual(blocked.get('decision'), 'block')
-        self.assertIn('verification', blocked['reason'])
-        self.assertIn('explain this verification gap to the user', blocked['reason'])
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed.'), {})
+        self.assertIn('verification', self.gap('Fixed.'))
+        self.assertIsNone(self.gap('Fixed.'))
         self.event('PostToolUse', tool_name='Edit', tool_input={'file_path': '/tmp/a', 'new_string': 'again'})
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed.'), {})
+        self.assertIsNone(self.gap('Fixed.'))
         self.event('UserPromptSubmit', prompt='continue')
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed.').get('decision'), 'block')
+        self.assertIsNone(self.gap('Fixed.'))  # no edit this turn: a plain answer is never judged
+        self.event('PostToolUse', tool_name='Edit', tool_input={'file_path': '/tmp/a', 'new_string': 'more'})
+        self.assertIsNotNone(self.gap('Fixed.'))
 
     def test_failed_read_command_does_not_invalidate_successful_check(self):
         self.begin_code()
@@ -114,20 +122,20 @@ class TaskEvidence(unittest.TestCase):
         for i in range(3):
             self.event('PostToolUseFailure', tool_name='exec_command', tool_input={'cmd': 'pwd'},
                        error='shell initialization failed: zoxide', tool_use_id='read-' + str(i))
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed. Checks run: unittest pass.'), {})
+        self.assertIsNone(self.gap('Fixed. Checks run: unittest pass.'))
 
     def test_receipt_words_without_observed_check_do_not_verify_code(self):
         self.begin_code()
-        result = self.event('Stop', last_assistant_message='Fixed. Checks run: all passed.')
-        self.assertEqual(result.get('decision'), 'block', result)
-        self.assertIn('evidence', result['reason'])
+        result = self.gap('Fixed. Checks run: all passed.')
+        self.assertIsNotNone(result)
+        self.assertIn('evidence', result)
 
     def test_successful_check_after_latest_edit_allows_completion(self):
         self.begin_code()
         self.check()
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed. Checks run: unittest pass.'), {})
+        self.assertIsNone(self.gap('Fixed. Checks run: unittest pass.'))
         self.event('PostToolUse', tool_name='Edit', tool_input={'file_path': str(Path(self.tmp.name, 'app.py')), 'new_string': 'again'}, tool_use_id='edit-2')
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed. Checks run: unittest pass.').get('decision'), 'block')
+        self.assertIsNotNone(self.gap('Fixed. Checks run: unittest pass.'))
 
     def test_failed_unknown_and_unrelated_checks_never_count_as_success(self):
         self.begin_code()
@@ -137,7 +145,7 @@ class TaskEvidence(unittest.TestCase):
         self.assertFalse(self.state()['task']['evidence'])
         self.check(call='pass')
         self.check(code=1, call='fail')
-        self.assertEqual(self.event('Stop', last_assistant_message='Fixed. Checks run: tests pass.').get('decision'), 'block')
+        self.assertIsNotNone(self.gap('Fixed. Checks run: tests pass.'))
 
     def test_ui_removal_keeps_normal_verification(self):
         for prompt in ('Remove the app logo from the header', 'Remove this button completely',
@@ -177,10 +185,10 @@ class TaskEvidence(unittest.TestCase):
         status = json.loads(self.cli('status', '--json').stdout)
         self.assertIn('application', status['missing_checks'])
         app.rmdir()
-        result = self.event('Stop', last_assistant_message='Completely removed. Checks run: application absent.')
-        self.assertEqual(result.get('decision'), 'block', result)
-        self.assertIn('startup', result['reason'])
-        self.assertIn('helpers', result['reason'])
+        result = self.gap('Completely removed. Checks run: application absent.')
+        self.assertIsNotNone(result)
+        self.assertIn('startup', result)
+        self.assertIn('helpers', result)
 
     def test_uninstall_application_cannot_be_proven_by_presence(self):
         self.event('UserPromptSubmit', prompt='Remove Example.app completely')
@@ -233,9 +241,9 @@ class TaskEvidence(unittest.TestCase):
         self.check(code=1)
         self.event('PostToolUse', tool_name='exec_command', tool_input={'cmd': 'git diff --check'},
                    tool_response={'exit_code': 0}, tool_use_id='lint')
-        result = self.event('Stop', last_assistant_message='Fixed. Checks run: all passed.')
-        self.assertEqual(result.get('decision'), 'block', result)
-        self.assertIn('failed-or-incomplete', result['reason'])
+        result = self.gap('Fixed. Checks run: all passed.')
+        self.assertIsNotNone(result)
+        self.assertIn('failed-or-incomplete', result)
 
     def test_check_started_before_edit_cannot_prove_new_state(self):
         self.begin_code()
@@ -318,12 +326,12 @@ class TaskEvidence(unittest.TestCase):
 
     def test_honest_unverified_report_is_not_a_completion_claim(self):
         self.begin_code()
-        self.assertEqual(self.event('Stop', last_assistant_message='Not fixed yet; verification remains unverified. Checks run: failed.'), {})
+        self.assertIsNone(self.gap('Not fixed yet; verification remains unverified. Checks run: failed.'))
 
     def test_negated_unverified_claim_still_requires_evidence(self):
         self.begin_code()
-        result = self.event('Stop', last_assistant_message='Fixed. No unverified checks remain. Checks run: all passed.')
-        self.assertEqual(result.get('decision'), 'block')
+        result = self.gap('Fixed. No unverified checks remain. Checks run: all passed.')
+        self.assertIsNotNone(result)
 
     def test_task_bookkeeping_hook_does_not_erase_the_evidence_it_just_saved(self):
         self.begin_code()
