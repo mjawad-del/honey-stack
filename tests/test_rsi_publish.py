@@ -254,6 +254,16 @@ class Publication(unittest.TestCase):
         self.run_publish()
         self.assertEqual(self.issue_creates, 1)
 
+    def test_new_skill_issue_title_omits_prompt_keywords(self):
+        review.add(2, 'skill_new', 'New skill for repeated ask: acme deploy payroll staging',
+                   '3 asks across 2 sessions with no skill invoked.', 'Draft it with the write-skill skill.',
+                   [{'q': 'deploy acme payroll to staging'}], 'cluster:acme,deploy,payroll,staging')
+        self.run_publish()
+        self.assertEqual(self.issue_creates, 1)
+        issue = json.dumps(self.issues).lower()
+        for word in ('acme', 'payroll', 'staging'):
+            self.assertNotIn(word, issue)
+
     def suggestion(self, kind='toolkit_fix'):
         return review.add(1, kind, 'workflow suggestion', 'Review routing.', 'Add a focused regression test.',
                           [{'q': 'PRIVATE QUOTE'}], kind)

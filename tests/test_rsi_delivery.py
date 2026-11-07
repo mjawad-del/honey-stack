@@ -23,7 +23,7 @@ class AutoDelivery(unittest.TestCase):
                   'base_sha':'c'*40,'url':'https://github.com/example/honey/pull/1'}}
         self.settings = {'enabled':True,'auto_merge':True,'repository':'example/honey','base':'main'}
         self.info = {'state':'OPEN','headRefOid':'b'*40,'baseRefOid':'c'*40,'isDraft':False,
-            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'',
+            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'APPROVED',
             'statusCheckRollup':[{'name':f'test ({osname}, {version})','status':'COMPLETED','conclusion':'SUCCESS'}
                 for osname in ('ubuntu-latest','macos-latest') for version in ('3.9','3.12')]}
 
@@ -70,7 +70,8 @@ class AutoDelivery(unittest.TestCase):
 
     def test_review_and_missing_checks_wait_without_merging(self):
         from honey.rsi import delivery
-        for update in ({'reviewDecision':'REVIEW_REQUIRED'},{'statusCheckRollup':[]}):
+        for update in ({'reviewDecision':'REVIEW_REQUIRED'},{'reviewDecision':''},{'reviewDecision':None},
+                       {'statusCheckRollup':[]}):
             with patch.object(publish,'gh',return_value=json.dumps(dict(self.info,**update))) as gh,patch('honey.rsi.patch._validate_eval'):
                 self.assertTrue(delivery.merge(self.p,self.settings)['state'].startswith('waiting'))
                 self.assertEqual(gh.call_count,1)
@@ -223,7 +224,7 @@ class Installation(unittest.TestCase):
             'source_sha':self.private,'sha':self.merged,'base_sha':base,
             'repository':'example/honey','url':'https://github.com/example/honey/pull/1'}}
         info={'state':'OPEN','headRefOid':self.merged,'baseRefOid':base,'isDraft':False,
-            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'',
+            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'APPROVED',
             'statusCheckRollup':[{'name':n,'status':'COMPLETED','conclusion':'SUCCESS'} for n in delivery.CHECKS]}
         # GitHub read was at base; remote has since advanced to the release.
         with patch.object(publish,'gh',return_value=json.dumps(info)),patch('honey.rsi.patch._validate_eval'):
@@ -240,7 +241,7 @@ class Installation(unittest.TestCase):
             'source_sha':self.private,'sha':self.merged,'base_sha':base,
             'repository':'example/honey','url':'https://github.com/example/honey/pull/1'}}
         info={'state':'OPEN','headRefOid':self.merged,'baseRefOid':base,'isDraft':False,
-            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'',
+            'mergeable':'MERGEABLE','mergeStateStatus':'CLEAN','reviewDecision':'APPROVED',
             'statusCheckRollup':[{'name':n,'status':'COMPLETED','conclusion':'SUCCESS'} for n in delivery.CHECKS]}
         with patch.object(publish,'gh',return_value=json.dumps(info)),patch('honey.rsi.patch._validate_eval'):
             result=delivery.merge(proposal,dict(self.settings,base='test-base'))

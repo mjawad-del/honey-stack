@@ -271,7 +271,7 @@ def main(args) -> int:
         decide(a.id, a.action, a.text)
     elif a.cmd == "note":
         b, merged = curate.add_note(" ".join(a.text), a.scope, "cli", "cli", paths.project_slug(os.getcwd()))
-        print(f"saved {b['id']}: {curate.line(b)[2:]}" if b else f"not saved: {merged}")
+        print(f"{'queued' if merged == 'queued' else 'saved'} {b['id']}: {curate.line(b)[2:]}" if b else f"not saved: {merged}")
         if b:
             store.git_commit(f"rsi: note {b['id']}")
     elif a.cmd == "session-end":

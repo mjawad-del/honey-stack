@@ -169,7 +169,10 @@ def suggestions(settings):
             if found:
                 url = found[0]['url']
             else:
-                title = prefix + public_text(proposal.get('title'), 160).replace('\n', ' ')
+                # New-skill titles are built from the user's own prompt keywords; never publish them.
+                public_title = ('New skill suggestion for a repeated request' if proposal.get('type') == 'skill_new'
+                                else public_text(proposal.get('title'), 160).replace('\n', ' '))
+                title = prefix + public_title
                 summary = public_text(proposal.get('rationale'), 600) or 'Investigate this potential workflow improvement.'
                 fix = public_text(proposal.get('fix'), 600) or 'Confirm the diagnosis and prepare a tested change.'
                 body = ('## RSI suggestion\n\n' + summary + '\n\n## Proposed next step\n\n' + fix +

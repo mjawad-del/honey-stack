@@ -16,7 +16,10 @@ _SECRETS = [
     (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "<secret>"),
     (re.compile(r"\bsk_live_[A-Za-z0-9]{10,}"), "<secret>"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), "<jwt>"),
-    (re.compile(r"(?i)\b(api[_-]?key|access[_-]?token|token|secret|password|passwd|authorization|credentials?|auth)(\s*[:=]\s*|\s+)(['\"]?)[^\s'\"]{8,256}\3"), r"\1\2<secret>"),
+    # Keyword may follow "_" (OPENAI_API_KEY=), take "is" ("password is ..."), or carry a Bearer scheme.
+    (re.compile(r"(?i)((?:\b|_)(?:api[_-]?key|access[_-]?token|token|secret|password|passwd|authorization|credentials?|auth))"
+                r"(\s*[:=]\s*|\s+(?:is\s+)?)(['\"]?)(?:bearer\s+)?[^\s'\"]{8,256}\3"), r"\1\2<secret>"),
+    (re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{12,}"), r"\1<secret>"),
     (re.compile(r"(://)[^/\s:@]{1,64}:[^/\s@]{1,128}@"), r"\1<creds>@"),
     (re.compile(r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b"), "<email>"),
     (re.compile(r"\b[0-9a-fA-F]{32,}\b"), "<blob>"),

@@ -103,6 +103,22 @@ def llm_audit() -> list:
     return out
 
 
+def in_managed_block(p: dict) -> bool:
+    """True only if the quoted line sits inside honey's own managed block (never a user-written line)."""
+    e = p.get("edit") if isinstance(p, dict) else None
+    if not isinstance(e, dict) or e.get("file") not in ("claude", "codex"):
+        return False
+    inside = False
+    for raw in _read(target(e["file"])).splitlines():
+        if raw == BEGIN:
+            inside = True
+        elif raw == END:
+            inside = False
+        elif raw == e.get("line"):
+            return inside
+    return False
+
+
 def apply(p: dict) -> str:
     if not isinstance(p, dict) or not isinstance(p.get("id"), str) or not re.fullmatch(r"[A-Za-z0-9_-]+", p["id"]):
         raise ValueError("instruction proposal has no valid id")

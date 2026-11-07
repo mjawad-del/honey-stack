@@ -89,7 +89,8 @@ def repair_toolkit(proposal: dict) -> str:
             fp = os.path.join(directory, name)
             if os.path.basename(name) != name or not os.path.islink(fp) or os.readlink(fp) != target or os.path.exists(fp):
                 raise ValueError("skill link changed since audit")
-            steps.append({"kind": "unlink", "path": fp, "target": target})
+            steps.append({"kind": "unlink", "path": fp, "target": target,
+                          "summary": f"RSI repair: remove broken skill link {fp}"})
     elif operation in ("remove_hook", "statusline", "disable_plugins"):
         fp = os.path.join(paths.claude_dir(), "settings.json")
         raw = install._read(fp)
@@ -139,7 +140,8 @@ def repair_toolkit(proposal: dict) -> str:
             for p in plugins:
                 settings["enabledPlugins"][p] = False
         steps.append({"kind": "edit_json", "file": fp, "old": raw,
-                      "new": json.dumps(settings, indent=2, ensure_ascii=False) + "\n", "undo": undo})
+                      "new": json.dumps(settings, indent=2, ensure_ascii=False) + "\n", "undo": undo,
+                      "summary": f"RSI repair ({operation}): {fp}"})
     else:
         raise ValueError("toolkit diagnosis has no structured repair")
     records = proposal.setdefault("repair_actions", [])
@@ -166,6 +168,10 @@ def run() -> dict:
             validate_sources(proposal)
             if proposal.get("type") == "upstream_port" and not proposal.get("child"):
                 raise Deferred("upstream patch awaits the daily improvement pass")
+            if proposal.get("type") in ("instr_edit", "instr_remove"):
+                from honey.rsi import instructions
+                if not instructions.in_managed_block(proposal):
+                    raise Deferred("edits to your own instruction lines wait for /rsi review")
             preparation = proposal.get("preparation") or {}
             if not proposal.get("child") and not proposal.get("repair") and (
                     proposal.get("type") == "skill_new" or

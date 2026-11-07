@@ -10,6 +10,15 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- rsi: new-skill suggestion issues no longer publish the user's prompt keywords in their titles.
+- rsi: automatic delivery merges only PRs with an approving review; an empty review decision now waits.
+- rsi: failed reflections no longer consume the daily reflection cap, have their own cap, fall back to the other installed engine, and stop retrying a session after three consecutive failures.
+- rsi: `remember:` notes are queued instead of lost when a background job holds the lock past the hook timeout.
+- rsi: redaction covers `NAME_API_KEY=…`, `DATABASE_PASSWORD=…`, "password is …" and Bearer tokens.
+- install: `honey uninstall` no longer crashes on automatic toolkit repair records, which now carry a summary.
+- rsi: autonomous mode no longer edits or removes user-written lines in CLAUDE.md / AGENTS.md.
+
 ## [0.18.3] - 2026-11-07
 
 ### Changed

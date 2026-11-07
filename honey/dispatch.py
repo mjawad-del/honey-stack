@@ -139,7 +139,9 @@ def user_prompt(ctx) -> dict:
         b, merged = curate.add_note(note["text"], note["scope"], ctx.agent, ctx.sid, ctx.state.get("project", ""))
         if b:
             observe.record(ctx, "note", id=b["id"], scope=b["scope"])
-            out.append(f"honey RSI saved {'(merged into) ' if merged else ''}learning {b['id']} [{b['scope']}]: "
+            verb = "queued (saved when the running RSI job finishes)" if merged == "queued" else \
+                "saved (merged into)" if merged else "saved"
+            out.append(f"honey RSI {verb} learning {b['id']} [{b['scope']}]: "
                        f"{curate.line(b)[2:]}. Acknowledge in one short line, then handle anything else in the message.")
         else:
             out.append(f"honey RSI did not save that note ({merged}). Tell the user in one line.")

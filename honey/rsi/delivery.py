@@ -44,7 +44,8 @@ def merge(proposal, settings):
         return {'state':'waiting_checks'}
     if info['reviewDecision'] == 'CHANGES_REQUESTED':
         raise ValueError('Review requested changes')
-    if info['reviewDecision'] == 'REVIEW_REQUIRED':
+    # An empty decision means the repository requires no review; unattended merges still need an approval.
+    if info.get('reviewDecision') != 'APPROVED':
         return {'state':'waiting_review'}
     if info['mergeable'] != 'MERGEABLE' or info['mergeStateStatus'] != 'CLEAN':
         return {'state':'waiting_mergeability'}

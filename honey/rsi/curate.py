@@ -5,6 +5,7 @@ Never lets an LLM rewrite the ledger wholesale (ACE "context collapse"); every c
 from __future__ import annotations
 
 import calendar
+import os
 import re
 import time
 
@@ -79,33 +80,75 @@ def never_hit(when: str, then: str) -> bool:
     return False
 
 
-def add_note(note_text: str, note_scope: str, agent: str, sid: str, project: str):
-    """User-stated `remember:` note → active bullet immediately. Returns (bullet, merged?) or (None, reason)."""
+NOTE_LOCK_WAIT = 1.5  # seconds; the prompt hook times out at 5 s, background jobs can hold the lock for minutes
+
+
+def _note_record(note_text: str, note_scope: str, agent: str, sid: str, project: str):
+    """Validated note fields, or None if rejected. Raises nothing."""
     clean = text.redact(note_text, 400)
     if text.injection_hit(clean):
-        return None, "rejected: looks like an instruction injection"
+        return None
     when, then = split_when_then(clean)
-    scope = scope_for(note_scope, agent, project)
-    ev = {"sid": f"{agent}-{sid}", "ts": text.now(), "q": clean[:300], "quarantined": False}
-    with store.lock():
-        rows = load()
-        for b in rows:
-            if b.get("scope") == scope and b.get("status") in ("active", "candidate", "proposed", "stale") \
-                    and text.jaccard(b["when"] + " " + b["then"], when + " " + then) >= MATCH:
-                b["prev"] = (b.get("prev") or [])[-2:] + [{"when": b["when"], "then": b["then"]}]
-                b.update(when=when[:120], then=then[:200], source="user-stated", orig=clean, status="active",
-                         updated=text.now(), last_evidence=text.now(), activated=b.get("activated") or text.now())
-                b["evidence"] = (b.get("evidence") or [])[-9:] + [ev]
-                b["sessions"] = sorted(set(b.get("sessions", [])) | {ev["sid"]})
-                save(rows)
-                return b, True
-        b = new_bullet(when, then, scope, "preference", "user-stated", 2, [ev], "active")
-        b["orig"] = clean
-        if project:
-            b["projects"] = [project]
-        rows.append(b)
-        save(rows)
+    return {"clean": clean, "when": when, "then": then, "scope": scope_for(note_scope, agent, project), "project": project,
+            "ev": {"sid": f"{agent}-{sid}", "ts": text.now(), "q": clean[:300], "quarantined": False}}
+
+
+def _save_note(rows: list, rec: dict):
+    """Merge or append one note record into ledger rows (caller holds store.lock). Returns (bullet, merged)."""
+    clean, when, then, scope, ev = rec["clean"], rec["when"], rec["then"], rec["scope"], rec["ev"]
+    for b in rows:
+        if b.get("scope") == scope and b.get("status") in ("active", "candidate", "proposed", "stale") \
+                and text.jaccard(b["when"] + " " + b["then"], when + " " + then) >= MATCH:
+            b["prev"] = (b.get("prev") or [])[-2:] + [{"when": b["when"], "then": b["then"]}]
+            b.update(when=when[:120], then=then[:200], source="user-stated", orig=clean, status="active",
+                     updated=text.now(), last_evidence=text.now(), activated=b.get("activated") or text.now())
+            b["evidence"] = (b.get("evidence") or [])[-9:] + [ev]
+            b["sessions"] = sorted(set(b.get("sessions", [])) | {ev["sid"]})
+            return b, True
+    b = new_bullet(when, then, scope, "preference", "user-stated", 2, [ev], "active")
+    b["id"] = rec.get("id") or b["id"]  # keep the id already reported for a queued note
+    b["orig"] = clean
+    if rec.get("project"):
+        b["projects"] = [rec["project"]]
+    rows.append(b)
     return b, False
+
+
+def drain_pending_notes() -> int:
+    """Save notes queued while the lock was busy. Caller holds store.lock. Returns how many were saved."""
+    queue = paths.path("pending-notes.jsonl")
+    with store.session_lock(queue):  # appenders wait; delete only after the ledger is saved
+        if not os.path.exists(queue):
+            return 0
+        records = store.read_jsonl(queue)
+        if records:
+            rows = load()
+            for rec in records:
+                _save_note(rows, rec)
+            save(rows)
+        os.remove(queue)
+    return len(records)
+
+
+def add_note(note_text: str, note_scope: str, agent: str, sid: str, project: str):
+    """User-stated `remember:` note → active bullet. Returns (bullet, merged?), (bullet, "queued") or (None, reason)."""
+    rec = _note_record(note_text, note_scope, agent, sid, project)
+    if rec is None:
+        return None, "rejected: looks like an instruction injection"
+    with store.lock(timeout=NOTE_LOCK_WAIT) as got:
+        if got:
+            drain_pending_notes()
+            rows = load()
+            b, merged = _save_note(rows, rec)
+            save(rows)
+            return b, merged
+    # A background job holds the lock; queue instead of losing the note when the hook times out.
+    b = new_bullet(rec["when"], rec["then"], rec["scope"], "preference", "user-stated", 2, [rec["ev"]], "active")
+    rec["id"] = b["id"]
+    queue = paths.path("pending-notes.jsonl")
+    with store.session_lock(queue):
+        store.append_jsonl(queue, rec)
+    return b, "queued"
 
 
 def forget(bid: str) -> bool:

@@ -477,6 +477,11 @@ def install(env: Env, dry: bool, yes: bool) -> int:
     return 0
 
 
+def _summary(action: dict) -> str:
+    """Older RSI repair records were written without a summary."""
+    return action.get("summary") or f"{action.get('kind', 'change')} {action.get('file') or action.get('path') or ''}".strip()
+
+
 def uninstall(env: Env, dry: bool, yes: bool, purge: bool) -> int:
     man = store.read_json(env.manifest, {"actions": []}) or {"actions": []}
     acts = [a for a in man["actions"] if env.want(a.get("agent")) or "agent" not in a]
@@ -484,7 +489,7 @@ def uninstall(env: Env, dry: bool, yes: bool, purge: bool) -> int:
         print("Nothing to undo.")
         return 0
     for i, a in enumerate(reversed(acts), 1):
-        print(f"{i:2}. undo: {a['summary']}")
+        print(f"{i:2}. undo: {_summary(a)}")
     if dry:
         print("\nDry run: nothing changed.")
         return 0
@@ -494,7 +499,7 @@ def uninstall(env: Env, dry: bool, yes: bool, purge: bool) -> int:
         try:
             print("  " + _undo(a))
         except Exception as e:  # keep going; report what could not be undone
-            print(f"  FAILED to undo {a['summary']}: {e}")
+            print(f"  FAILED to undo {_summary(a)}: {e}")
     man["actions"] = [a for a in man["actions"] if a not in acts]
     with open(env.manifest, "w", encoding="utf-8") as f:
         json.dump(man, f, indent=1)

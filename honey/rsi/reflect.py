@@ -16,8 +16,10 @@ from honey import paths
 from honey.rsi import curate, digest, store, text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BUDGETS = {"reflection_usd": 0.15, "weekly_usd": 1.50, "monthly_usd": 5.00, "max_reflections_per_day": 8, "codex_runs_per_week": 20}
+BUDGETS = {"reflection_usd": 0.15, "weekly_usd": 1.50, "monthly_usd": 5.00, "max_reflections_per_day": 8,
+           "max_failed_reflections_per_day": 8, "codex_runs_per_week": 20}
 MAX_PER_RUN = 3
+MAX_FAILURES = 3  # consecutive failed reflections before a session waits for new events
 IDLE_HOURS = 6
 
 
@@ -40,8 +42,12 @@ def budget_block(engine: str):
     """Reason string if a paid call now would exceed a cap, else None."""
     b, costs = budgets(), store.read_jsonl(paths.path("costs.jsonl"))
     today = time.strftime("%Y-%m-%d", time.gmtime())
-    if sum(1 for c in costs if c.get("ts", "").startswith(today) and c.get("job") == "reflect") >= b["max_reflections_per_day"]:
+    today_reflects = [c for c in costs if c.get("ts", "").startswith(today) and c.get("job") == "reflect"]
+    # Failed calls (e.g. an account error) must not use up the day's successful reflections.
+    if sum(1 for c in today_reflects if c.get("ok") is not False) >= b["max_reflections_per_day"]:
         return "daily reflection cap"
+    if sum(1 for c in today_reflects if c.get("ok") is False) >= b["max_failed_reflections_per_day"]:
+        return "daily reflection failure cap"
     if dollar_caps_enabled() and _spent(costs, 7) + b["reflection_usd"] > b["weekly_usd"]:
         return "weekly budget"
     if dollar_caps_enabled() and _spent(costs, 30) + b["reflection_usd"] > b["monthly_usd"]:
@@ -52,26 +58,35 @@ def budget_block(engine: str):
     return None
 
 
-def engine() -> tuple:
+def engines() -> list:
+    """Installed model CLIs in preference order: [(name, path), ...]."""
+    found = []
     for name in ("claude", "codex"):
         for c in (os.path.expanduser(f"~/.local/bin/{name}"), f"/opt/homebrew/bin/{name}", shutil.which(name)):
             if c and os.path.exists(c):
-                return name, c
-    return None, None
+                found.append((name, c))
+                break
+    return found
+
+
+def engine() -> tuple:
+    found = engines()
+    return found[0] if found else (None, None)
 
 
 def _child_env() -> dict:
     return dict(os.environ, RSI_CHILD="1", HONEY_OFF="1", HONEY_DISABLE="1")
 
 
-def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = "haiku"):
-    """(structured_output dict, usd, engine) using Claude if installed, else Codex. Raises on failure."""
+def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = "haiku", only: str = None):
+    """(structured_output dict, usd, engine) using Claude if installed, else Codex (or just `only`). Raises on failure."""
     if os.environ.get("HONEY_FAKE_LLM"):  # tests: canned reflector output, no paid call
         with open(os.environ["HONEY_FAKE_LLM"]) as f:
             return json.load(f), 0.0, "fake"
-    name, exe = engine()
-    if not exe:
-        raise RuntimeError("no claude or codex CLI found")
+    found = [e for e in engines() if only in (None, e[0])]
+    if not found:
+        raise RuntimeError(f"no {only or 'claude or codex'} CLI found")
+    name, exe = found[0]
     if name == "claude":
         cmd = [exe, "-p", "--model", model, "--tools", "", "--settings", '{"disableAllHooks":true}',
                "--no-session-persistence", "--strict-mcp-config", "--system-prompt", system,
@@ -108,6 +123,16 @@ def _processed() -> dict:
     return done
 
 
+def _failures() -> dict:
+    """Consecutive failed reflections per session; deferrals neither count nor reset."""
+    out = {}
+    for line in (open(paths.path("processed.log")).read().splitlines() if os.path.exists(paths.path("processed.log")) else []):
+        parts = line.split("\t")
+        if len(parts) >= 3 and not parts[2].startswith("deferred:"):
+            out[parts[1]] = out.get(parts[1], 0) + 1 if parts[2].startswith(("failed:", "error:")) else 0
+    return out
+
+
 def _mark(key, status, upto, n_cand=0, usd=None) -> None:
     store.ensure_dir(paths.home())
     with open(paths.path("processed.log"), "a", encoding="utf-8") as f:
@@ -129,7 +154,24 @@ def due_sessions() -> list:
         ended = any(r.get("e") == "end" for r in rows) or time.time() - os.path.getmtime(fp) > IDLE_HOURS * 3600
         if ended and len(rows) > done.get(key, 0):
             out.append((key, rows))
+    failures = _failures()
+    out.sort(key=lambda item: failures.get(item[0], 0))  # stable: failing sessions go behind fresh ones
     return out
+
+
+def reflect_call(system: str, body: str, schema: dict, max_usd: float, key: str = ""):
+    """Try each installed engine in order; record each failed attempt. Raises the last error if all fail."""
+    candidates, last = engines() or [(None, None)], None
+    for i, (name, _) in enumerate(candidates):
+        if i and budget_block(name or ""):
+            break
+        try:
+            return call_llm(system, body, schema, max_usd, only=name)
+        except Exception as e:
+            last = e
+            store.append_jsonl(paths.path("costs.jsonl"), {"ts": text.now(), "job": "reflect", "engine": name,
+                                                           "usd": None, "sid": key, "ok": False})
+    raise last
 
 
 def reflect_session(key: str, rows: list) -> str:
@@ -152,10 +194,13 @@ def reflect_session(key: str, rows: list) -> str:
     with open(os.path.join(HERE, "schemas", "reflection.schema.json"), encoding="utf-8") as f:
         schema = json.load(f)
     try:
-        result, usd, eng = call_llm(system, body, schema, budgets()["reflection_usd"])
+        result, usd, eng = reflect_call(system, body, schema, budgets()["reflection_usd"], key)
     except Exception as e:
-        store.append_jsonl(paths.path("costs.jsonl"), {"ts": text.now(), "job": "reflect", "engine": name, "usd": None, "sid": key, "ok": False})
-        _mark(key, "failed:" + str(e)[:60].replace("\t", " "), prev)
+        reason = str(e)[:60].replace("\t", " ").replace("\n", " ")
+        if _failures().get(key, 0) + 1 >= MAX_FAILURES:
+            _mark(key, "retired:failed:" + reason, upto)  # wait for new events instead of retrying forever
+        else:
+            _mark(key, "failed:" + reason, prev)
         return "failed"
     store.append_jsonl(paths.path("costs.jsonl"), {"ts": text.now(), "job": "reflect", "engine": eng, "model": "haiku",
                                                    "usd": usd, "sid": key, "ok": True})
@@ -169,6 +214,7 @@ def run_pending() -> None:
     with store.lock(blocking=False) as got:
         if not got:
             return
+        curate.drain_pending_notes()
         for key, rows in due_sessions()[:MAX_PER_RUN]:
             try:
                 reflect_session(key, rows)

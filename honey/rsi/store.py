@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 
 from honey import paths
 
@@ -90,17 +91,22 @@ def session_lock(file):
 
 
 @contextlib.contextmanager
-def lock(blocking=True):
-    """Exclusive lock on ~/.honey/.lock. Yields False if non-blocking and already held."""
+def lock(blocking=True, timeout=None):
+    """Exclusive lock on ~/.honey/.lock. Yields False if non-blocking (or `timeout` seconds pass) while held."""
     import fcntl
     ensure_dir(paths.home())
     fd = os.open(paths.path(".lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    deadline = None if timeout is None else time.monotonic() + timeout
     try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
-        except BlockingIOError:
-            yield False
-            return
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking and deadline is None else fcntl.LOCK_NB))
+                break
+            except BlockingIOError:
+                if deadline is None or time.monotonic() >= deadline:
+                    yield False
+                    return
+                time.sleep(0.05)
         yield True
     finally:
         os.close(fd)
