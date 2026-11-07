@@ -18,11 +18,12 @@ CORR_START = re.compile(
 CORR_ANY = re.compile(
     r"\b(?:i (?:already |just )?(?:said|told you|asked(?: you)?)|as i (?:said|mentioned)|like i said|i meant"
     r"|you (?:missed|forgot|ignored|skipped|broke|didn'?t (?:read|follow|check|test|run))|why (?:did|would|are) you"
-    r"|you (?:were|are) supposed to|not what i)\b", re.I)
+    r"|you (?:were|are) supposed to|not what i|you (?:could(?:n'?t| not)|can'?t|failed to) (?:\w+ ){0,2}(?:figure|find|see|read|understand))\b", re.I)
 STILL = re.compile(
     r"\b(?:still (?:not|broken|failing|fails|wrong|the same|happening|there|doesn'?t|isn'?t|getting)"
     r"|(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not) work(?:ing)?|same (?:error|issue|problem|bug)|broke(?:n)? again|it'?s back)\b", re.I)
-FRUSTRATION = re.compile(r"\?{2,}|!{2,}|\b(?:wtf|ugh+|ffs|seriously|come on|omg)\b", re.I)
+# "??" alone is how many people ask an ordinary question; only a long run counts as frustration.
+FRUSTRATION = re.compile(r"\?{4,}|!{3,}|\b(?:wtf|ugh+|ffs|seriously|come on|omg)\b", re.I)
 ACCEPT = re.compile(r"^\s*(?:perfect|great|nice|awesome|excellent|thanks?(?: you)?|ty|lgtm|looks (?:good|great)|works(?: now| great)?"
                     r"|that works|ship it|exactly|love it|well done)\b[\s.!]*$", re.I)
 CONTINUE = re.compile(r"^\s*(?:continue|go on|keep going|proceed|carry on|next|go ahead|do it|yes(?:,? (?:do it|go|please|proceed))?"

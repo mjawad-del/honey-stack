@@ -1,4 +1,4 @@
-"""Run a real check and bind its result to a bounded Git source snapshot."""
+"""Run a real check and bind its result to a Git working-tree snapshot."""
 from __future__ import annotations
 
 import fcntl
@@ -11,31 +11,35 @@ import time
 from honey.rsi import store, text
 
 
+CONTENT_LIMIT = 64 * 1024 * 1024  # beyond this, files are tracked by size and timestamps only
+
+
 def snapshot(cwd):
-    def git(*args):
-        result = subprocess.run(['git', '-C', cwd, *args], capture_output=True, check=True)
-        return result.stdout
-    if os.path.realpath(os.fsdecode(git('rev-parse', '--show-toplevel')).strip()) != os.path.realpath(cwd):
-        raise ValueError('Verification must be bound to the Git project root')
-    digest = hashlib.sha256(git('rev-parse', 'HEAD') + git('ls-files', '--stage', '-z'))
-    names = sorted(set(git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0')) - {b''})
-    if len(names) > 20000:
-        raise ValueError('Verification snapshot exceeds 20000 files')
+    """Digest of the Git working tree that contains cwd (worktrees and subfolders included).
+
+    Symlinks are hashed by their target path, not followed. Large trees still get a digest:
+    after CONTENT_LIMIT bytes, files contribute metadata (size, mtime, ctime) instead of content.
+    """
+    def git(where, *args):
+        return subprocess.run(['git', '-C', where, *args], capture_output=True, check=True).stdout
+    root = os.path.realpath(os.fsdecode(git(cwd, 'rev-parse', '--show-toplevel')).strip())
+    digest = hashlib.sha256(git(root, 'rev-parse', 'HEAD') + git(root, 'ls-files', '--stage', '-z'))
+    names = sorted(set(git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0')) - {b''})
     total = 0
     for name in names:
-        path = os.path.join(cwd, os.fsdecode(name))
+        path = os.path.join(root, os.fsdecode(name))
         digest.update(name + b'\0')
         if os.path.islink(path):
-            raise ValueError('Verification snapshot cannot cover external symlink contents')
-        if not os.path.exists(path):
+            digest.update(b'link:' + os.fsencode(os.readlink(path)) + b'\0')
+            continue
+        if not os.path.isfile(path):
             digest.update(b'deleted\0')
             continue
-        size = os.path.getsize(path)
-        total += size
-        if total > 64 * 1024 * 1024:
-            raise ValueError('Verification snapshot exceeds 64 MiB')
         stat = os.stat(path)
-        digest.update(f'{stat.st_mode}:{stat.st_mtime_ns}:{stat.st_ctime_ns}'.encode() + b'\0')
+        digest.update(f'{stat.st_mode}:{stat.st_size}:{stat.st_mtime_ns}:{stat.st_ctime_ns}'.encode() + b'\0')
+        total += stat.st_size
+        if total > CONTENT_LIMIT:
+            continue
         with open(path, 'rb') as stream:
             while True:
                 block = stream.read(1024 * 1024)

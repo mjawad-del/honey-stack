@@ -159,6 +159,19 @@ class VerificationRunner(unittest.TestCase):
         self.assertEqual(self.status()['task']['request'], 'Fix the next task')
         self.assertFalse(self.status()['task']['evidence'])
 
+    def test_snapshot_covers_symlinks_subfolders_and_worktrees(self):
+        from honey import verification
+        (self.project / 'link').symlink_to('/etc/hosts')
+        (self.project / 'pkg').mkdir(); (self.project / 'pkg/mod.py').write_text('x = 1\n')
+        self.git('add', '.'); self.git('commit', '-qm', 'link')
+        root = verification.snapshot(str(self.project))
+        self.assertEqual(verification.snapshot(str(self.project / 'pkg')), root)
+        tree = Path(self.tmp.name, 'tree')
+        self.git('worktree', 'add', '-q', str(tree))
+        before = verification.snapshot(str(tree))
+        (tree / 'pkg/mod.py').write_text('x = 2\n')
+        self.assertNotEqual(verification.snapshot(str(tree / 'pkg')), before)
+
 
 if __name__ == '__main__':
     unittest.main()

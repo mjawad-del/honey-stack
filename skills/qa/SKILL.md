@@ -51,7 +51,7 @@ If the browser rejects `file://` navigation or an artifact path outside its allo
 - Run the selected matrix once, read its native report, then narrow repairs to `file:line` or `--last-failed`. Keep verified goal names/params stable for cache reuse. After repairing an agent test, run it once with normal timeouts and `--no-cache` to prove the live path; deterministic tests need no model-based rerun.
 - Use native JSON/Markdown reports instead of writing a converter for ordinary QA. Keep required failure screenshots and distinct visual-state evidence. Full traces/video and repeated screen dumps are diagnostic choices, not mandatory for every passing action. Preserve evidence before another run replaces it.
 
-If live MCP is needed, reuse its registration and session. New registration requires a new client session; a config edit alone does not prove tools loaded. Use `locate`/`run_code` and returned `Test line:` values. Close sessions when done. Native mobile uses its supported engine; desktop native apps have no e2e engine.
+If live MCP is needed, reuse its registration and session. New registration requires a new client session; a config edit alone does not prove tools loaded. Use `locate`/`run_code` and returned `Test line:` values. Close sessions when done. With the Playwright MCP plugin, save screenshots and files only under its allowed output directory (paths outside, including `/tmp`, are refused), and write `browser_run_code` as plain page code: `require`/`import` are unavailable, so read files with the agent's own tools. Native mobile uses its supported engine; desktop native apps have no e2e engine.
 
 ## Close with proof
 
