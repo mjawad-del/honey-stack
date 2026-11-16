@@ -22,7 +22,7 @@ An explanatory question such as "How would I deploy this?" requests guidance onl
 
 ## Fast path
 
-When the user asked for a commit plus push, or a commit, push and PR, inspect `git status` and `git diff` once, then do the rest in one call: `honey ship -m "<subject>" [--body "<why>"] [--trailer "<line>"] [--fixes 12,13] [--check "<test cmd>"] [--pr --pr-body-file <file>] <paths>...`. It stages only the named paths, commits nothing if the check fails, refuses the default branch, never forces a push, and reuses an open PR rather than opening a second. Use the steps below when it isn't installed, or for split commits, conflicts or amends.
+When the user asked for a commit plus push, or a commit, push and PR, inspect `git status` and `git diff` once, then do the rest in one call: `honey ship -m "<subject>" [--body "<why>"] [--trailer "<line>"] [--fixes 12,13] [--check "<test cmd>"] [--pr --pr-body-file <file>] <paths>...`. A first word naming a branch on origin is the PR target (`honey ship staging -m "<subject>" <paths>`); with no `-m` it ships existing commits (`honey ship staging`). It stages only the named paths, commits nothing if the check fails, refuses the default branch, never forces a push, and reuses an open PR rather than opening a second. Use the steps below when it isn't installed, or for split commits, conflicts or amends.
 
 ## Commit
 

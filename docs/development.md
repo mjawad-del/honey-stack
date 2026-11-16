@@ -9,13 +9,15 @@ Repeated release jobs for the same revision are serialized; different revisions 
 The release job needs `contents: write` on `main`; branch rules must permit its version commit. Pull-request tests have read-only repository permissions. Manual versioned tags remain supported, and their publication is also idempotent. Automatic releases become active when this workflow is merged to `main`.
 
 ```bash
-python3 tests/run.py                    # stdlib self-checks
+python3 tests/run.py                    # stdlib self-checks, in parallel (-j N, default: CPU count)
+python3 tests/run.py --changed          # only tests the diff vs origin/main can affect
+python3 tests/run.py guard ship         # by name: test_guard*.py, test_ship*.py
 claude plugin validate .
 claude plugin eval . --tag smoke --runs 1 --ablation none --max-cost-usd 2 --no-publish --allow-tools Bash Write Edit
 python3 scripts/release.py X.Y.Z --push # optional manual release
 ```
 
-The runner gives every test script temporary state and a fake model provider. Direct imports through the test helper also use temporary state when `HONEY_HOME` is unset. Maintained fixture tests run offline; JavaScript regex compatibility is additionally checked when Node is installed. These tests do not run paid model evaluations.
+The runner gives every test script temporary state and a fake model provider. `--changed` maps changed files to the tests that import or drive them, and runs the whole suite when a change touches shared plumbing or can't be mapped; CI always runs everything. `tests/test_hook_imports.py` fails if heavy modules creep back into the tool-call hook path. Direct imports through the test helper also use temporary state when `HONEY_HOME` is unset. Maintained fixture tests run offline; JavaScript regex compatibility is additionally checked when Node is installed. These tests do not run paid model evaluations.
 
 [SemVer](https://semver.org/) + [CHANGELOG](../CHANGELOG.md). Skill style: [docs/skill-style.md](skill-style.md). Design: [docs/design/plan.md](design/plan.md).
 

@@ -10,6 +10,9 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- `honey ship <branch>`: a word naming any branch on origin (`main`, `staging`, `release/2.0`, ...) becomes the PR target and implies `--pr`. Without `-m`, it pushes commits that already exist and opens the PR with `gh pr create --fill`. Uncommitted changes still need `-m`. A word that is both a file and a branch, or two target branches, is refused.
+
 ## [1.3.0] - 2026-11-16
 
 ### Added

@@ -126,5 +126,79 @@ class Ship(unittest.TestCase):
         self.assertEqual(self.git("ls-remote", "origin", "feat/x").split()[0], remote_head.strip())
 
 
+    def remote_branch(self, name):
+        self.git("push", "-q", "origin", f"main:{name}")
+        self.git("fetch", "-q", "origin")
+
+    def test_bare_remote_branch_is_the_pr_target(self):
+        self.remote_branch("staging")
+        (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
+        r = self.ship("-m", "fix: b", "staging", "b.txt")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), "b.txt")
+        create = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]][0]
+        self.assertEqual(create[create.index("--base") + 1], "staging")
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "@{u}"), "origin/feat/x")  # never pushed onto staging
+
+    def test_any_remote_branch_name_works(self):
+        for i, name in enumerate(("main", "test", "release/2.0")):
+            if name != "main":
+                self.remote_branch(name)
+            (self.repo / f"f{i}.txt").write_text("x\n", encoding="utf-8")
+            self.log.unlink(missing_ok=True)
+            r = self.ship("-m", f"fix: {i}", name, f"f{i}.txt")
+            self.assertEqual(r.returncode, 0, (name, r.stderr + r.stdout))
+            create = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]][0]
+            self.assertEqual(create[create.index("--base") + 1], name)
+
+    def test_target_first_then_options_then_paths(self):
+        self.remote_branch("staging")
+        (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
+        r = self.ship("staging", "-m", "fix: b", "--fixes", "7", "b.txt")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), "b.txt")
+        create = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]][0]
+        self.assertEqual(create[create.index("--base") + 1], "staging")
+
+    def test_ship_staging_without_message_pushes_existing_commits(self):
+        self.remote_branch("staging")
+        (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
+        self.git("add", "b.txt")
+        self.git("commit", "-qm", "feat: committed earlier")
+        r = self.ship("staging")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        create = [c for c in self.gh_calls() if c[:2] == ["pr", "create"]][0]
+        self.assertEqual(create[create.index("--base") + 1], "staging")
+        self.assertIn("--fill", create)  # title and body from the commits
+        self.assertEqual(self.git("rev-parse", "@{u}"), self.git("rev-parse", "HEAD"))
+
+    def test_without_message_uncommitted_work_is_not_guessed(self):
+        self.remote_branch("staging")
+        (self.repo / "b.txt").write_text("b\n", encoding="utf-8")
+        r = self.ship("staging", "b.txt")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("-m", r.stderr)
+        self.assertEqual(self.git("rev-list", "--count", "main..HEAD"), "0")
+
+    def test_nothing_to_ship(self):
+        self.remote_branch("staging")
+        r = self.ship("staging")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("nothing to ship", r.stderr)
+
+    def test_word_that_is_both_file_and_branch_is_refused(self):
+        self.remote_branch("staging")
+        (self.repo / "staging").write_text("s\n", encoding="utf-8")
+        r = self.ship("-m", "fix: s", "staging")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("--base", r.stderr)
+        self.assertEqual(self.git("rev-list", "--count", "main..HEAD"), "0")
+
+    def test_unknown_word_is_still_a_path(self):
+        r = self.ship("-m", "fix: x", "nosuchbranch")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("did not match", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

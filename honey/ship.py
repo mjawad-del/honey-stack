@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 
-USAGE = "honey ship -m SUBJECT [--body TEXT] [--trailer LINE]... [--fixes 1,2] [--check CMD] [--pr] [paths...]"
+USAGE = "honey ship [TARGET-BRANCH] [-m SUBJECT] [--body TEXT] [--trailer LINE]... [--fixes 1,2] [--check CMD] [--pr] [paths...]"
 
 
 def _run(args, **kw):
@@ -55,9 +55,39 @@ def _message(a) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+def _remote_branch(name: str) -> bool:
+    """True when `name` is a branch on origin: the local remote-tracking ref, else one ls-remote call."""
+    if _git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{name}"):
+        return True
+    return _run(["git", "ls-remote", "--exit-code", "--heads", "origin", name]).returncode == 0
+
+
+def _is_path(word: str) -> bool:
+    return os.path.lexists(word) or bool(_git("ls-files", "--", word))  # tracked-but-deleted files count
+
+
+def _split_target(words: list):
+    """Pull the PR target branch out of the positional words: any word naming a branch on origin that isn't
+    a path. Returns (target, paths, error)."""
+    target, paths = None, []
+    for word in words:
+        if _is_path(word):
+            if not word.startswith(("-", ".", "/")) and _remote_branch(word):
+                return None, [], (f"{word!r} is both a file and a branch on origin; "
+                                  f"use --base {word} for the PR target or ./{word} for the file")
+            paths.append(word)
+        elif _remote_branch(word):
+            if target:
+                return None, [], f"two target branches given ({target!r}, {word!r}); pick one"
+            target = word
+        else:
+            paths.append(word)  # git add reports the unknown pathspec
+    return target, paths, None
+
+
 def main(argv: list) -> int:
     p = argparse.ArgumentParser(prog="honey ship", usage=USAGE, description=__doc__)
-    p.add_argument("-m", "--message", required=True, help="commit subject, also the PR title by default")
+    p.add_argument("-m", "--message", help="commit subject, also the PR title by default; omit to ship existing commits")
     p.add_argument("--body", help="commit body")
     p.add_argument("--trailer", action="append", help="trailer line, e.g. 'Co-Authored-By: …' (repeatable)")
     p.add_argument("--fixes", help="issue numbers closed by this change, comma-separated")
@@ -68,8 +98,15 @@ def main(argv: list) -> int:
     p.add_argument("--base", help="PR base branch (default: the remote's default branch)")
     p.add_argument("--draft", action="store_true")
     p.add_argument("--allow-default", action="store_true", help="permit committing on the default branch")
-    p.add_argument("paths", nargs="*", help="paths to stage; already staged changes are included")
-    a = p.parse_args(argv)
+    p.add_argument("paths", nargs="*", help="a branch on origin (PR target, implies --pr) and/or paths to stage")
+    a = p.parse_intermixed_args(argv)  # `honey ship staging -m "..." a.py`: target first, paths after options
+    target, a.paths, err = _split_target(a.paths)
+    if err:
+        return _fail(err, 2)
+    if target:
+        if a.base and a.base != target:
+            return _fail(f"target {target!r} conflicts with --base {a.base!r}", 2)
+        a.base, a.pr = target, True
 
     branch = _git("branch", "--show-current")
     if not branch:
@@ -82,17 +119,25 @@ def main(argv: list) -> int:
         r = subprocess.run(a.check, shell=True)
         if r.returncode != 0:
             return _fail(f"check failed (exit {r.returncode}); nothing committed")
-    if a.paths:
-        r = _run(["git", "add", "--", *a.paths])
+    if not a.message:
+        # No subject: ship commits that already exist, never guess a message for uncommitted work.
+        if a.paths or _run(["git", "diff", "--cached", "--quiet"]).returncode != 0:
+            return _fail("uncommitted changes need a subject: honey ship -m \"<subject>\" ... (or commit them first)", 2)
+        base_ref = f"origin/{a.base or default}"
+        ahead = _git("rev-list", "--count", f"{base_ref}..HEAD") if _git("rev-parse", "--verify", "--quiet", base_ref) else "1"
+        if ahead in ("", "0"):
+            return _fail(f"nothing to ship: no commits ahead of {base_ref} and nothing staged", 2)
+    else:
+        if a.paths:
+            r = _run(["git", "add", "--", *a.paths])
+            if r.returncode != 0:
+                return _fail(r.stderr.strip() or "git add failed", 2)
+        if _run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+            return _fail("nothing staged; name the paths to ship", 2)
+        r = _run(["git", "commit", "-q", "-F", "-"], input=_message(a))
         if r.returncode != 0:
-            return _fail(r.stderr.strip() or "git add failed", 2)
-    if _run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
-        return _fail("nothing staged; name the paths to ship", 2)
-
-    r = _run(["git", "commit", "-q", "-F", "-"], input=_message(a))
-    if r.returncode != 0:
-        return _fail("commit failed (a hook may have rejected it); nothing pushed\n" + (r.stdout + r.stderr).strip())
-    print(f"committed {_git('rev-parse', '--short', 'HEAD')} {a.message.strip()}", flush=True)
+            return _fail("commit failed (a hook may have rejected it); nothing pushed\n" + (r.stdout + r.stderr).strip())
+        print(f"committed {_git('rev-parse', '--short', 'HEAD')} {a.message.strip()}", flush=True)
 
     # Look up an existing PR while the push runs: the two network calls overlap.
     view = subprocess.Popen([*_gh(), "pr", "view", "--json", "url,state"], stdout=subprocess.PIPE,
@@ -121,16 +166,18 @@ def main(argv: list) -> int:
         print(f"pr {existing['url']} (already open; body unchanged)")
         return 0
 
+    title = a.title or (a.message or "").strip()
     body_file, tmp = a.pr_body_file, None
-    if not body_file:
+    if title and not body_file:
         fd, tmp = tempfile.mkstemp(prefix="honey-ship-", suffix=".md")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(_message(argparse.Namespace(message="", body=a.body, fixes=a.fixes, trailer=None)).strip() + "\n")
         body_file = tmp
     try:
-        cmd = [*_gh(), "pr", "create", "--base", a.base or default, "--title", a.title or a.message.strip(),
-               "--body-file", body_file] + (["--draft"] if a.draft else [])
-        r = _run(cmd)
+        cmd = [*_gh(), "pr", "create", "--base", a.base or default]
+        # No subject or title: gh fills both from the branch's commits.
+        cmd += ["--title", title, "--body-file", body_file] if title else ["--fill"]
+        r = _run(cmd + (["--draft"] if a.draft else []))
     finally:
         if tmp:
             os.unlink(tmp)

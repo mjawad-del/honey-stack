@@ -47,6 +47,34 @@ Work as usual: honey sizes each task and picks the right skill. To steer it, sen
 
 Modes change how much is explained, not how carefully work is done. Sizing, verification and safety apply in every mode.
 
+### Ship in one call
+
+`honey ship` checks, commits, pushes and opens (or reuses) a PR in one command. Agents use it through the `ship` skill, and you can run it yourself:
+
+```bash
+honey ship staging -m "fix: login redirect" --check "npm test" src/login.ts   # commit login.ts, PR into staging
+honey ship test                                                               # already committed: push + PR into test
+```
+
+- **Any branch on your remote can be the target** (`main`, `staging`, `release/2.0`, ...). A word that is a file is committed; a word that is both is refused.
+- **Safe by default:** stages only the files you name, commits nothing if `--check` fails, refuses to commit on the default branch, never force-pushes, and reuses an open PR instead of opening a second.
+- **No `-m`?** It ships commits you already made and fills the PR from them. Uncommitted changes always need a subject.
+
+### Fast by default
+
+honey runs a hook on every tool call, so it is built to stay out of the way. Measured on an M1 Pro, v1.2.0 vs v1.3.0:
+
+| | Before | Now |
+|---|---|---|
+| Hook before/after each tool call | 55 ms | **31 ms** |
+| Prompt and stop hooks | 55 ms | **36 ms** |
+| Verification snapshot, 2.7k-file monorepo | 154 ms | **88 ms** (read-only: never writes to `.git`) |
+| Local test suite | 112 s | **26 s** (parallel; `--changed` runs only affected tests) |
+| CI result on `main` | 5.4–8.1 min | **3.0 min** |
+| Shipping a PR | 6–8 commands | **1 command** |
+
+The guard also got quieter: `rm -rf` inside your workspace or a temp dir and destructive-looking text inside heredocs no longer trigger warnings, while `/`, home, `..` escapes and anything fed to a shell still do.
+
 ### Intent loop
 
 honey checks that it understood you before it acts, and that it finished everything you asked for:
