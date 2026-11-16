@@ -15,6 +15,11 @@ Successful main CI automatically versions and publishes releases. Manual release
 ### Added
 - `honey ship <branch>`: a word naming any branch on origin (`main`, `staging`, `release/2.0`, ...) becomes the PR target and implies `--pr`. Without `-m`, it pushes commits that already exist and opens the PR with `gh pr create --fill`. Uncommitted changes still need `-m`. A word that is both a file and a branch, or two target branches, is refused.
 
+### Changed
+- `tests/run.py` splits `unittest` files with 10+ tests into chunks of ~5, each in its own process. The slowest unit drops from 27 s (`test_rsi_publish.py`, 110 s on Windows CI) to under 7 s, so a single file no longer sets the suite's wall time on small runners.
+- CI's macOS job runs on Apple's `/usr/bin/python3` (3.9) instead of downloading Python each run (~24 s), and fails loudly if the runner image changes that version.
+- CI skips the macOS job on pull requests and runs it on every push to `main`, where the release still waits for it. PR macOS jobs were timing out in GitHub's runner queue before running a step.
+
 ## [1.3.0] - 2026-11-16
 
 ### Added

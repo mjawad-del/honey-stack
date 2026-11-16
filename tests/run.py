@@ -7,6 +7,7 @@ Usage: python3 tests/run.py [-j N] [--changed [BASE]] [name ...]
               anything under tests/helpers.py, tests/run.py or an unmapped honey/ module runs everything
 """
 import argparse
+import ast
 import concurrent.futures as cf
 import glob
 import os
@@ -26,7 +27,41 @@ NONE = ('{"session_summary":"","candidates":[],"bullet_labels":[],"skill_feedbac
         '"progress":[],"project_facts_dropped":0,"none_reason":"test"}')
 
 
-def run_one(t):
+SPLIT_MIN, CHUNK = 10, 5  # unittest files with >= SPLIT_MIN tests run as chunks of ~CHUNK tests, one process each
+
+
+def test_ids(path):
+    """unittest ids (module.Class.test_x) when the file is a plain unittest module, else []."""
+    with open(path, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    mod = os.path.splitext(os.path.basename(path))[0]
+    ids = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and any("TestCase" in ast.unparse(b) for b in node.bases):
+            ids += [f"{mod}.{node.name}.{f.name}" for f in node.body
+                    if isinstance(f, ast.FunctionDef) and f.name.startswith("test")]
+    return ids
+
+
+def units(tests):
+    """(label, argv, weight) per process. A file's slowest-to-split part is the file itself, so big unittest
+    files become several processes: one 110 s file used to set the whole suite's wall time."""
+    out = []
+    for t in tests:
+        size, name = os.path.getsize(t), os.path.basename(t)
+        ids = test_ids(t) if t.endswith(".py") else []
+        if len(ids) < SPLIT_MIN:
+            out.append((name, [t], size))
+            continue
+        n = -(-len(ids) // CHUNK)
+        for i in range(n):
+            chunk = ids[i::n]  # interleave so neighbouring (often similar) tests spread across chunks
+            out.append((f"{name}[{i + 1}/{n}]", ["-m", "unittest", "-q", *chunk], size / n))
+    return out
+
+
+def run_one(unit):
+    label, argv, _ = unit
     h = tempfile.mkdtemp(prefix="honey-test-")
     start = time.monotonic()
     try:
@@ -35,11 +70,11 @@ def run_one(t):
             f.write(NONE)
         env = dict(os.environ, HONEY_HOME=h, PYTHONDONTWRITEBYTECODE="1", HONEY_FAKE_LLM=none, HONEY_NO_AUTOUPDATE="1")
         env.pop("RSI_CHILD", None), env.pop("HONEY_DISABLE", None)
-        r = subprocess.run([sys.executable, t], env=env, capture_output=True, text=True, encoding="utf-8",
+        r = subprocess.run([sys.executable, *argv], env=env, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", cwd=here)
     finally:
         shutil.rmtree(h, ignore_errors=True)  # a detached RSI job may still be writing; never fail the run on cleanup
-    return t, r, time.monotonic() - start
+    return label, r, time.monotonic() - start
 
 
 def changed_files(base):
@@ -106,19 +141,19 @@ def main():
             if not tests:
                 print("no affected tests")
                 return 0
-    # Biggest files first so the slowest tests don't start last and stretch the wall time.
-    tests.sort(key=os.path.getsize, reverse=True)
+    # Heaviest units first so the slowest ones don't start last and stretch the wall time.
+    work = sorted(units(tests), key=lambda u: u[2], reverse=True)
 
     start, failed = time.monotonic(), []
     with cf.ThreadPoolExecutor(max_workers=max(1, a.jobs)) as pool:
-        for t, r, secs in pool.map(run_one, tests):
+        for label, r, secs in pool.map(run_one, work):
             ok = r.returncode == 0
-            print(("ok   " if ok else "FAIL ") + f"{os.path.basename(t)}  {secs:.1f}s")
+            print(("ok   " if ok else "FAIL ") + f"{label}  {secs:.1f}s")
             if not ok:
-                failed.append((t, r))
-    for t, r in failed:
-        print(f"\n--- {os.path.basename(t)} ---\n" + (r.stdout + r.stderr)[-3000:])
-    total = f"{len(tests)} tests in {time.monotonic() - start:.1f}s"
+                failed.append((label, r))
+    for label, r in failed:
+        print(f"\n--- {label} ---\n" + (r.stdout + r.stderr)[-3000:])
+    total = f"{len(tests)} files ({len(work)} processes) in {time.monotonic() - start:.1f}s"
     print(f"python {sys.version.split()[0]}: {'all passed' if not failed else f'{len(failed)} failed'} ({total})")
     return 1 if failed else 0
 

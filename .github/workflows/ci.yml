@@ -19,14 +19,24 @@ jobs:
         include:
           - {os: ubuntu-24.04, python: "3.9"}
           - {os: ubuntu-24.04, python: "3.12"}
-          - {os: macos-latest, python: "3.9"}
+          - {os: macos-latest, python: "system"}  # Apple's /usr/bin/python3 (3.9): what macOS users run; no 24 s download
           - {os: windows-latest, python: "3.12"}
+        # macOS runs only on pushes to main: PR macOS jobs sat 15+ min in GitHub's runner queue and timed out
+        # without a single step. Ubuntu 3.9 covers the Python floor on PRs; main still gates the release on macOS.
+        exclude:
+          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: matrix.python != 'system'
         with:
           python-version: ${{ matrix.python }}
+      - name: Use Apple's python3 (must stay 3.9; fail loudly if the runner image changes it)
+        if: matrix.python == 'system'
+        run: |
+          /usr/bin/python3 -c "import sys; print(sys.version); assert sys.version_info[:2] == (3, 9), sys.version"
+          mkdir -p "$RUNNER_TEMP/bin" && ln -sf /usr/bin/python3 "$RUNNER_TEMP/bin/python" && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - run: git config --global user.email ci@example.com && git config --global user.name ci
       # Test fixture repos have no .gitattributes; keep their bytes identical to POSIX runners.
       - run: git config --global core.autocrlf false
