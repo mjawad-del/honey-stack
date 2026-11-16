@@ -45,6 +45,18 @@ Work as usual: honey sizes each task and picks the right skill. To steer it, sen
 
 Modes change how much is explained, not how carefully work is done. Sizing, verification and safety apply in every mode.
 
+### Intent loop
+
+honey checks that it understood you before it acts, and that it finished everything you asked for:
+
+- **Asks when a misread would mean a redo.** If a request has two readings (an answer or an action, a different scope or target), honey asks one question with its recommended answer first, using `AskUserQuestion` in Claude Code or `request_user_input` in Codex. Otherwise it goes ahead and tags its guesses `(my guess)`.
+- **Tracks every ask.** A request with a numbered or bulleted list ends with `Asks: 1 done · 2 partial (why)`. If an edit turn skips that line, the next reply gets one reminder.
+- **Answers "is everything done?"** A question like "all the changes I asked done?" brings back this session's ask log so each item gets a status. The log is also restored after context compaction.
+- **Respects "just asking".** "I'm just asking…" gets an answer, not an edit.
+- **Remembers your terms.** "I told you ship means merged too" or "by staging I mean the QA cluster" is saved as a project learning (undo: `honey rsi forget <id>`). `rsi off` turns saving off.
+
+Nothing in the loop blocks. Each hint is added only when its pattern matches.
+
 ## Skills
 
 **Flow:** grill → plan → execute → verify → review → ship. Bugs start at `debug`.

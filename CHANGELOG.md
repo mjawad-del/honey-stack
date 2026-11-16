@@ -10,6 +10,13 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- intent loop: the always-on rules now ask once, with the host's question tool (`AskUserQuestion` / `request_user_input`), when a misread (answer vs act, scope, target) would mean a redo; otherwise guesses are tagged `(my guess)`. Requests with several asks end with `Asks: 1 done · 2 partial (why)`.
+- intent hints (`honey/intent.py`), all advisory and pattern-gated: an answer-only hint for "just asking" prompts; a reconcile hint for listed asks, plus a one-shot nudge when an edit turn skips it; a replay of the session ask log for "all the changes I asked done?" and after compaction; stated terms ("i told you X means Y", "by X I mean Y") saved as project learnings.
+
+### Changed
+- The always-on bootstrap budget in `tests/test_hooks.py` rises from 3000 to 3100 chars to fit the intent rule (+98 chars).
+
 ## [1.0.0] - 2026-11-14
 
 ### Removed (breaking)

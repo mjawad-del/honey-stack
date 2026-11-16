@@ -11,7 +11,7 @@ import re
 import time
 import traceback
 
-from honey import autoupdate, health, hookio, modes, paths, receipt, tasks, tool_events
+from honey import autoupdate, health, hookio, intent, modes, paths, receipt, tasks, tool_events
 from honey.rsi import curate, observe, review, signals, store, text
 
 EDIT_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "apply_patch", "ApplyPatch"}
@@ -62,6 +62,8 @@ def session_start(ctx) -> dict:
     body = modes.render(ctx.agent, ctx.state)
     if src == "compact":
         body = modes.COMPACT_PREFIX + body
+        if intent.ledger(ctx.state):
+            body += "\n\nUser asks this session (oldest first), so none are lost to the summary:\n" + intent.ledger(ctx.state)
     parts = [body]
     if ctx.state.get("brief"):
         parts.append(ctx.state["brief"])  # frozen per session: byte-identical on resume/compact (prompt cache)
@@ -145,6 +147,8 @@ def user_prompt(ctx) -> dict:
                        f"{curate.line(b)[2:]}. Acknowledge in one short line, then handle anything else in the message.")
         else:
             out.append(f"honey RSI did not save that note ({merged}). Tell the user in one line.")
+    if org == "user":
+        out.extend(intent.on_prompt(ctx, prompt, sig))
     return hookio.context("UserPromptSubmit", "\n".join(out)) if out else {}
 
 
@@ -235,6 +239,7 @@ def stop(ctx) -> dict:
     ctx.dirty = True
     observe.record(ctx, "stop", len=len(msg), done=st["claims_done"] or None, ends_q=st["ends_q"] or None,
                    edited=ctx.state.get("edited") or None)
+    intent.on_stop(ctx, msg)
     gap = receipt.check(ctx.payload, ctx.state)
     if gap:
         observe.record(ctx, "receipt_gap", kind=gap[0], reason=gap[1][:200])

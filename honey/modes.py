@@ -107,7 +107,8 @@ def render(agent: str, state: dict, template: str = None) -> str:
     text = "\n".join(out).strip()
     text = re.sub(r"\{s:([\w-]+)\}", lambda m: _skill(agent, m.group(1)), text)
     router = "`$honey`" if agent == "codex" else "`/honey`"
-    return text.format(router=router, indicator=indicator(state), mode=selected(state))
+    ask = "`request_user_input`" if agent == "codex" else "`AskUserQuestion`"
+    return text.format(router=router, indicator=indicator(state), mode=selected(state), ask=ask)
 
 
 def mode_lines(state: dict) -> str:
