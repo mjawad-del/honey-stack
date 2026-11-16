@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-16
+
 ### Fixed
 - guard: `rm -rf` and `find -delete` no longer warn on absolute paths strictly inside the tool call's working directory or a temp dir (#55, #58). The directory itself, `<root>/*`, `..` escapes, siblings, home and `/` still warn. Heredoc bodies are data unless a shell consumes them (`bash <<EOF`, `| sh`, `eval "$(cat <<EOF`, unquoted-delimiter `$( )`). Quoted, commented or unterminated heredocs and `$'...'` prefixes keep their lines under inspection, nesting is capped at depth 8, and drive-letter or backslash Windows paths compare the same way.
 
@@ -278,7 +280,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/umararshad4/honey-stack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/umararshad4/honey-stack/compare/v0.18.3...v1.0.0
