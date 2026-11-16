@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-16
+
 ### Added
 - `honey ship <branch>`: a word naming any branch on origin (`main`, `staging`, `release/2.0`, ...) becomes the PR target and implies `--pr`. Without `-m`, it pushes commits that already exist and opens the PR with `gh pr create --fill`. Uncommitted changes still need `-m`. A word that is both a file and a branch, or two target branches, is refused.
 
@@ -296,7 +298,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...v1.2.0
