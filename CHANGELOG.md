@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-16
+
 ### Added
 - `honey ship`: check, commit, push and open (or reuse) a PR in one call. It stages only the named paths, commits nothing when `--check` fails, refuses the default branch without `--allow-default`, never force-pushes, and looks up the PR while the push runs. The `ship` skill uses it as its fast path.
 - `tests/run.py` runs test files in parallel (`-j`, default: CPU count, biggest first) and takes `--changed [BASE]` to run only affected tests, plus test name filters. The full suite drops from 128 s to 28 s on an 8-core machine.
@@ -291,7 +293,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/umararshad4/honey-stack/compare/v1.0.0...v1.1.0
