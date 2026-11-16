@@ -20,6 +20,10 @@ An explanatory question such as "How would I deploy this?" requests guidance onl
 - NEVER mention AI, assistants, Claude, Codex, MCT or honey-stack in a commit subject or PR title. Add a co-author trailer only when the harness or the user's config asks for one.
 - Leave `--no-verify`, `reset --hard`, `branch -D`, `worktree remove --force` and `clean -f` alone unless the user asks for them by name.
 
+## Fast path
+
+When the user asked for a commit plus push, or a commit, push and PR, inspect `git status` and `git diff` once, then do the rest in one call: `honey ship -m "<subject>" [--body "<why>"] [--trailer "<line>"] [--fixes 12,13] [--check "<test cmd>"] [--pr --pr-body-file <file>] <paths>...`. It stages only the named paths, commits nothing if the check fails, refuses the default branch, never forces a push, and reuses an open PR rather than opening a second. Use the steps below when it isn't installed, or for split commits, conflicts or amends.
+
 ## Commit
 
 1. **Prove the tree.** Run the `verify` skill on exactly what will be committed. Done when: its receipt is fresh.

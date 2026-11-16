@@ -5,14 +5,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from helpers import REPO, hook
+from helpers import REPO, hook, TempHome
 from honey import paths
 from honey.rsi import coach, review, store, text
 
 
 class CoachEvidence(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = TempHome()
         self.addCleanup(self.tmp.cleanup)
         self.env = patch.dict(os.environ, {"HONEY_HOME": self.tmp.name})
         self.env.start()

@@ -33,3 +33,15 @@ def hook(agent, payload):
 
 def ctx_text(out):
     return (out.get("hookSpecificOutput") or {}).get("additionalContext", "")
+
+
+class TempHome(tempfile.TemporaryDirectory):
+    """TemporaryDirectory whose cleanup tolerates a detached hook job still writing into it (Python 3.9 has no
+    ignore_cleanup_errors); the race grows under the parallel runner."""
+
+    def cleanup(self):
+        try:
+            super().cleanup()
+        except OSError:
+            import shutil
+            shutil.rmtree(self.name, ignore_errors=True)

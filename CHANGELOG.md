@@ -10,9 +10,16 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- `honey ship`: check, commit, push and open (or reuse) a PR in one call. It stages only the named paths, commits nothing when `--check` fails, refuses the default branch without `--allow-default`, never force-pushes, and looks up the PR while the push runs. The `ship` skill uses it as its fast path.
+- `tests/run.py` runs test files in parallel (`-j`, default: CPU count, biggest first) and takes `--changed [BASE]` to run only affected tests, plus test name filters. The full suite drops from 128 s to 28 s on an 8-core machine.
+
 ### Changed
 - Faster tool-call hooks: PreToolUse/PostToolUse drop from ~55 ms to ~31 ms per call (measured on an M1 Pro, about 180 calls a session), and prompt and stop hooks from ~55 ms to ~36 ms. Per-event modules (autoupdate, intent, receipt, curate, review, signals) and heavy stdlib modules (tempfile, hashlib's OpenSSL backend, argparse, traceback, glob) now load only where they are used. `tests/test_hook_imports.py` fails if they creep back into the tool-call path.
 - The verification snapshot is read-only and 1.3-2.1x faster: HEAD, the index and `git status` pin clean files, and only changed or untracked files are hashed (`--no-optional-locks`, so `.git/index` is never rewritten). Touching a file without changing it no longer invalidates a recorded check. Windows keeps the full scan, since its ctime doesn't move on writes. Checks recorded before the upgrade need one rerun.
+
+### Fixed
+- `tests/test_autoupdate.py` runs on its own (it now imports the isolated test home).
 
 ## [1.2.1] - 2026-11-16
 

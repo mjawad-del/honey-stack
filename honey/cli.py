@@ -31,7 +31,7 @@ def main(argv: list) -> int:
         if (getattr(stream, "encoding", "") or "").lower().replace("-", "") != "utf8" and hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
     if not argv or argv[0] in ("-h", "--help"):
-        print("usage: honey install | uninstall | update | autoupdate | doctor | bootstrap --agent claude|codex | task status|set|verify|run | sync | rsi … | statusline | --version | hook --agent claude|codex")
+        print("usage: honey install | uninstall | update | autoupdate | doctor | bootstrap --agent claude|codex | task status|set|verify|run | ship -m SUBJECT [--pr] [paths…] | sync | rsi … | statusline | --version | hook --agent claude|codex")
         return 0
     cmd, rest = argv[0], argv[1:]
     if cmd == 'bootstrap':
@@ -67,6 +67,9 @@ def main(argv: list) -> int:
     if cmd == "doctor":
         from honey import doctor
         return doctor.main(rest)
+    if cmd == "ship":
+        from honey import ship
+        return ship.main(rest)
     if cmd == "task":
         from honey import tasks
         return tasks.main(rest)

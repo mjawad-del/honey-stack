@@ -6,13 +6,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from helpers import hook
+from helpers import hook, TempHome
 from honey.rsi import guards
 
 
 class GuardWarnings(unittest.TestCase):
     def setUp(self):
-        self.home = tempfile.TemporaryDirectory()
+        self.home = TempHome()
         self.addCleanup(self.home.cleanup)
         env = patch.dict(os.environ, HONEY_HOME=self.home.name, HONEY_NO_AUTOUPDATE='1')
         env.start()

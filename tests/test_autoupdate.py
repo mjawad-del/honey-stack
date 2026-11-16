@@ -7,6 +7,7 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import helpers  # noqa: E402,F401  isolated HONEY_HOME when run on its own
 os.environ.pop("HONEY_NO_AUTOUPDATE", None)  # the runner sets it; this test exercises the feature
 from honey import autoupdate, paths  # noqa: E402
 

@@ -8,12 +8,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from helpers import REPO, hook
+from helpers import REPO, hook, TempHome
 
 
 class TaskEvidence(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = TempHome()
         self.addCleanup(self.tmp.cleanup)
         self.env = patch.dict(os.environ, HONEY_HOME=self.tmp.name, HONEY_NO_AUTOUPDATE='1')
         self.env.start()

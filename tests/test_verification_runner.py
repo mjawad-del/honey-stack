@@ -8,12 +8,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from helpers import REPO, hook
+from helpers import REPO, hook, TempHome
 
 
 class VerificationRunner(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.tmp = TempHome(); self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
         self.project = root / 'project'; self.project.mkdir()
         self.home = root / 'state'
