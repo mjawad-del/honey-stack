@@ -29,16 +29,16 @@ class Health(unittest.TestCase):
         config = Path(paths.codex_dir() if agent == 'codex' else paths.claude_dir())
         bundle = config / 'plugins/cache/honey-stack/honey/0.11.0'
         (bundle / '.codex-plugin').mkdir(parents=True)
-        (bundle / '.codex-plugin/plugin.json').write_text('{"name":"honey"}')
+        (bundle / '.codex-plugin/plugin.json').write_text('{"name":"honey"}', encoding="utf-8")
         (bundle / 'hooks').mkdir()
-        (bundle / 'hooks/codex-hooks.json').write_text('{}')
-        (bundle / 'hooks/hooks.json').write_text('{}')
+        (bundle / 'hooks/codex-hooks.json').write_text('{}', encoding="utf-8")
+        (bundle / 'hooks/hooks.json').write_text('{}', encoding="utf-8")
         (bundle / 'bin').mkdir()
-        (bundle / 'bin/honey').write_text('# entrypoint')
+        (bundle / 'bin/honey').write_text('# entrypoint', encoding="utf-8")
         if agent == 'codex':
-            (config / 'config.toml').write_text('[plugins."honey@honey-stack"]\nenabled = ' + str(enabled).lower() + '\n')
+            (config / 'config.toml').write_text('[plugins."honey@honey-stack"]\nenabled = ' + str(enabled).lower() + '\n', encoding="utf-8")
         else:
-            (config / 'settings.json').write_text(json.dumps({'enabledPlugins': {'honey@honey-stack': enabled}}))
+            (config / 'settings.json').write_text(json.dumps({'enabledPlugins': {'honey@honey-stack': enabled}}), encoding="utf-8")
 
     def deliver(self, event, now=1000, **payload):
         self.ctx.payload = dict(payload, hook_event_name=event)
@@ -46,7 +46,7 @@ class Health(unittest.TestCase):
             health.record(self.ctx)
         state = Path(paths.path('state', 'sessions', 'codex-session-1.json'))
         state.parent.mkdir(parents=True, exist_ok=True)
-        state.write_text(json.dumps(self.ctx.state))
+        state.write_text(json.dumps(self.ctx.state), encoding="utf-8")
 
     def test_installed_enabled_missing_session_is_not_healthy(self):
         self.install()
@@ -113,17 +113,17 @@ class Health(unittest.TestCase):
     def test_valid_commented_config_header_is_recognized(self):
         self.install()
         Path(paths.codex_dir(), 'config.toml').write_text(
-            "[plugins.'honey@honey-stack'] # installed plugin\nenabled = true # intentional\n")
+            "[plugins.'honey@honey-stack'] # installed plugin\nenabled = true # intentional\n", encoding="utf-8")
         self.assertTrue(health.report('codex', 'session-1')['enabled'])
 
     def test_malformed_state_and_invalid_session_id_are_not_trusted(self):
         self.install()
         self.deliver('SessionStart')
         state = Path(paths.path('state', 'sessions', 'codex-session-1.json'))
-        state.write_text('{"health":{"events":[{}],"last_seen":true,"unsupported_tools":[null]}}')
+        state.write_text('{"health":{"events":[{}],"last_seen":true,"unsupported_tools":[null]}}', encoding="utf-8")
         self.assertEqual(health.report('codex', 'session-1')['delivery'], 'missing')
         self.assertEqual(health.report('codex', '../session-1')['delivery'], 'invalid_session')
-        state.write_text(json.dumps({'health': {'last_seen': 10**400}}))
+        state.write_text(json.dumps({'health': {'last_seen': 10**400}}), encoding="utf-8")
         self.assertEqual(health.report('codex', 'session-1')['delivery'], 'missing')
 
     def test_json_doctor_reports_missing_delivery_without_smoke_or_writes(self):

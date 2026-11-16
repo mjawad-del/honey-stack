@@ -10,6 +10,12 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- Windows support. `install.ps1` is a PowerShell one-line installer. File locks use `msvcrt` when `fcntl` is unavailable, atomic writes retry briefly while Windows holds the target open, `~/.local/bin/honey` is a launcher file instead of a symlink, detached RSI jobs open no console window, and the dangerous-command guard treats `C:/` and `$USERPROFILE` paths as absolute. CI runs the test suite on `windows-latest`. RSI's autonomous skill patching isn't supported on Windows yet.
+
+### Fixed
+- Text files and subprocess output are read and written as UTF-8 everywhere, not in the locale encoding.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added

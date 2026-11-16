@@ -16,7 +16,7 @@ os.environ["HONEY_FAKE_LLM"] = FAKE
 
 
 def fake(obj):
-    json.dump(obj, open(FAKE, "w"))
+    json.dump(obj, open(FAKE, "w", encoding="utf-8"))
 
 
 # --- coach: insufficient data, then real numbers
@@ -32,18 +32,18 @@ assert "corrections: 2.0 per 10 turns" in r and "git-delivery" in r and "patch-c
 # --- Tier 1: graduation → apply into managed block → revert
 cdir = tempfile.mkdtemp()
 os.environ["CLAUDE_CONFIG_DIR"] = cdir
-open(os.path.join(cdir, "CLAUDE.md"), "w").write("# mine\n- keep this\n")
+open(os.path.join(cdir, "CLAUDE.md"), "w", encoding="utf-8").write("# mine\n- keep this\n")
 b = curate.new_bullet("pushing", "push only, no PR unless asked", "global", "preference", "observed", 2, [{"sid": "x", "q": "q"}], "active")
 b.update(helpful=4, activated="2026-01-01T00:00:00Z")
 curate.save([b])
 ps = instructions.graduate()
 assert ps and ps[0]["type"] == "instr_line"
 subprocess.run([sys.executable, os.path.join(REPO, "bin", "honey"), "rsi", "decide", ps[0]["id"], "apply"], check=True, capture_output=True, env=dict(os.environ))
-doc = open(os.path.join(cdir, "CLAUDE.md")).read()
+doc = open(os.path.join(cdir, "CLAUDE.md"), encoding="utf-8").read()
 assert instructions.BEGIN in doc and "push only, no PR unless asked" in doc and "- keep this" in doc, doc
 assert curate.load()[0]["status"] == "archived"   # graduated out of the brief
 instructions.revert(ps[0]["id"])
-assert open(os.path.join(cdir, "CLAUDE.md")).read() == "# mine\n- keep this\n"
+assert open(os.path.join(cdir, "CLAUDE.md"), encoding="utf-8").read() == "# mine\n- keep this\n"
 # LLM audit must quote an exact existing line
 b2 = curate.new_bullet("always", "decide routine choices yourself", "global", "preference", "user-stated", 2, [{"sid": "x"}], "active")
 curate.save([b2])
@@ -89,18 +89,18 @@ up = tempfile.mkdtemp()
 g = lambda *a: subprocess.run(["git", "-C", up, *a], check=True, capture_output=True)
 g("init", "-q"), g("config", "user.email", "t@t"), g("config", "user.name", "t")
 os.makedirs(os.path.join(up, "skills", "ship")), os.makedirs(os.path.join(up, "skills", "other"))
-open(os.path.join(up, "skills", "ship", "SKILL.md"), "w").write("v1\n")
-open(os.path.join(up, "skills", "other", "SKILL.md"), "w").write("v1\n")
+open(os.path.join(up, "skills", "ship", "SKILL.md"), "w", encoding="utf-8").write("v1\n")
+open(os.path.join(up, "skills", "other", "SKILL.md"), "w", encoding="utf-8").write("v1\n")
 g("add", "-A"), g("commit", "-qm", "v1")
 srcs = os.path.join(tempfile.mkdtemp(), "sources.json")
-json.dump({"sources": [{"name": "t", "repo": up, "paths": ["skills"], "maps": {"ship": "ship", "other": "plan"}}]}, open(srcs, "w"))
+json.dump({"sources": [{"name": "t", "repo": up, "paths": ["skills"], "maps": {"ship": "ship", "other": "plan"}}]}, open(srcs, "w", encoding="utf-8"))
 os.environ["HONEY_RADAR_SOURCES"] = srcs
 assert radar.run() == []
-open(os.path.join(up, "skills", "ship", "SKILL.md"), "w").write("v2: verify the remote SHA after push\n")
-open(os.path.join(up, "skills", "other", "SKILL.md"), "w").write("v2\n")
+open(os.path.join(up, "skills", "ship", "SKILL.md"), "w", encoding="utf-8").write("v2: verify the remote SHA after push\n")
+open(os.path.join(up, "skills", "other", "SKILL.md"), "w", encoding="utf-8").write("v2\n")
 g("commit", "-qam", "v2")
 fake({"adopt": True, "rationale": "fixes PR confusion", "suggestion": "After pushing, verify the remote SHA."})
 props = radar.run()
 assert len(props) == 1 and props[0]["skill"] == "ship", props
-assert json.load(open(os.path.join(H, "state", "radar-last.json")))["ignored"] == 1
+assert json.load(open(os.path.join(H, "state", "radar-last.json"), encoding="utf-8"))["ignored"] == 1
 print("tiers ok")

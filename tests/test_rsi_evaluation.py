@@ -23,7 +23,7 @@ class Evaluation(unittest.TestCase):
     def test_generated_regex_runs_in_javascript(self):
         case = patch.write_case(self.root, 'grill', {'prompt': 'Fix pagination', 'should_fire': False,
                                                     'reply_regex': '(?i)(boundary|last page)'})
-        body = Path(self.root, 'evals', case, 'graders', 'reply.md').read_text()
+        body = Path(self.root, 'evals', case, 'graders', 'reply.md').read_text(encoding="utf-8")
         pattern = json.loads(next(l[9:] for l in body.splitlines() if l.startswith('pattern: ')))
         result = subprocess.run(['node', '-e', 'process.exit(new RegExp(process.argv[1], "i").test("BOUNDARY") ? 0 : 1)', pattern], capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -61,7 +61,7 @@ class Evaluation(unittest.TestCase):
         for name in ('case', 'missing'):
             directory = Path(self.root, 'evals', name)
             directory.mkdir(parents=True)
-            (directory / 'prompt.md').write_text('A maintained behavior case.\n')
+            (directory / 'prompt.md').write_text('A maintained behavior case.\n', encoding="utf-8")
         with self.assertRaisesRegex(ValueError, 'missing|coverage'):
             self.eval_result({'cases': [{'name': 'case', 'arms': {'with': [{'score': 1}]}}]})
 

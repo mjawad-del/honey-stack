@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest]  # ubuntu-latest (26.04) has no Python 3.9 build
+        os: [ubuntu-24.04, macos-latest, windows-latest]  # ubuntu-latest (26.04) has no Python 3.9 build
         python: ["3.9", "3.12"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -19,6 +19,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: git config --global user.email ci@example.com && git config --global user.name ci
+      # Test fixture repos have no .gitattributes; keep their bytes identical to POSIX runners.
+      - run: git config --global core.autocrlf false
       - run: python scripts/release.py --check
       - run: python tests/run.py
   release:

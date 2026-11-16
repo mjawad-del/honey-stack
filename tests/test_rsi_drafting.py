@@ -11,6 +11,7 @@ from helpers import REPO
 from honey import paths
 from honey.rsi import patch, store, text
 
+@unittest.skipIf(os.name == 'nt', 'RSI autonomous skill patching is not supported on Windows yet')
 class Drafting(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
@@ -21,7 +22,7 @@ class Drafting(unittest.TestCase):
         for args in [('init', '-q'), ('config', 'user.name', 'Test'), ('config', 'user.email', 'test@example.test')]:
             self.git(*args)
         store.write_text(str(self.root / 'skills/debug/SKILL.md'), '---\nname: debug\ndescription: Debug failures\n---\nReproduce first.\n')
-        for name in ['behavioral.json', *json.loads(Path(REPO, 'evals/behavioral.json').read_text())['cases']]:
+        for name in ['behavioral.json', *json.loads(Path(REPO, 'evals/behavioral.json').read_text(encoding="utf-8"))['cases']]:
             source, target = Path(REPO, 'evals', name), self.root / 'evals' / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(source, target) if source.is_dir() else shutil.copy2(source, target)
@@ -36,12 +37,12 @@ class Drafting(unittest.TestCase):
                                 {'prompt': 'What is two plus two?', 'should_fire': False, 'reply_regex': ''}]}
 
     def git(self, *args):
-        return subprocess.run(['git', '-C', str(self.root), *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(['git', '-C', str(self.root), *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout.strip()
 
     def evaluate(self, root, pattern, out, eval_dir="evals"):
         has_skill = Path(root, 'skills/release-notes/SKILL.md').exists()
         cases = list(Path(root, eval_dir).glob('rsi-release-notes-*/graders/trigger.md'))
-        scores = {p.parent.parent.name: 1 if 'max: 0' in p.read_text() or has_skill else 0 for p in cases}
+        scores = {p.parent.parent.name: 1 if 'max: 0' in p.read_text(encoding="utf-8") or has_skill else 0 for p in cases}
         scores.update({p.name: 1 for p in Path(root, eval_dir).glob('behavior-*')})
         return scores
 
@@ -89,7 +90,7 @@ class Drafting(unittest.TestCase):
             with mock('honey.rsi.reflect.call_llm', return_value=(dict(self.draft, name=name), 0, 'fake')):
                 with self.assertRaises(ValueError):
                     patch.propose_new(self.proposal)
-        self.assertIn('Reproduce first.', (self.root / 'skills/debug/SKILL.md').read_text())
+        self.assertIn('Reproduce first.', (self.root / 'skills/debug/SKILL.md').read_text(encoding="utf-8"))
 
     def test_paid_draft_failure_retains_conservative_cost(self):
         with mock('honey.rsi.reflect.call_llm', side_effect=RuntimeError('invalid provider JSON')):

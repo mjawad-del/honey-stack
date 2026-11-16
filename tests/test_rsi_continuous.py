@@ -12,6 +12,7 @@ from honey import paths
 from honey.rsi import autonomy, cli, reflect, review, store
 
 
+@unittest.skipIf(os.name == 'nt', 'RSI autonomous skill patching is not supported on Windows yet')
 class Continuous(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

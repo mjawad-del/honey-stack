@@ -27,15 +27,15 @@ class SourceCheckout(unittest.TestCase):
         self.git('config', 'user.email', 'test@example.com')
         self.git('config', 'user.name', 'Test')
         (self.repo / 'honey').mkdir()
-        (self.repo / 'honey' / '__init__.py').write_text('')
+        (self.repo / 'honey' / '__init__.py').write_text('', encoding="utf-8")
         (self.repo / '.codex-plugin').mkdir()
-        (self.repo / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey"}')
+        (self.repo / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey"}', encoding="utf-8")
         self.git('add', '.'); self.git('commit', '-qm', 'source')
         self.cache = self.root / 'plugins' / 'cache' / 'honey-stack' / 'honey' / '0.9.1'
         self.cache.mkdir(parents=True)
 
     def git(self, *args):
-        return subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout.strip()
 
     def test_source_and_installed_runtime(self):
         with mock.object(paths, 'REPO', str(self.repo)):
@@ -43,14 +43,14 @@ class SourceCheckout(unittest.TestCase):
         store.write_json(paths.path('synced.json'), {'source_repo': str(self.repo)})
         with mock.object(paths, 'REPO', str(self.cache)):
             self.assertEqual(paths.source_repo(), str(self.repo))
-            self.assertEqual(patch.git('rev-parse', '--show-toplevel'), str(self.repo))
+            self.assertEqual(os.path.normcase(os.path.normpath(patch.git('rev-parse', '--show-toplevel'))), os.path.normcase(str(self.repo)))
 
     def test_cached_git_metadata_never_becomes_editable_source(self):
         subprocess.run(['git', 'clone', '-q', str(self.repo), str(self.cache)], check=True, capture_output=True)
         store.write_json(paths.path('synced.json'), {'source_repo': str(self.repo)})
         with mock.object(paths, 'REPO', str(self.cache)):
             self.assertEqual(paths.source_repo(), str(self.repo))
-            self.assertEqual(patch.git('rev-parse', '--show-toplevel'), str(self.repo))
+            self.assertEqual(os.path.normcase(os.path.normpath(patch.git('rev-parse', '--show-toplevel'))), os.path.normcase(str(self.repo)))
         for metadata in ({}, {'source_repo': str(self.cache)}, {'source_repo': str(self.root / 'missing')}):
             store.write_json(paths.path('synced.json'), metadata)
             with mock.object(paths, 'REPO', str(self.cache)):
@@ -63,7 +63,7 @@ class SourceCheckout(unittest.TestCase):
             with mock.object(paths, 'REPO', str(self.cache)):
                 with self.assertRaises(RuntimeError):
                     paths.source_repo()
-        (self.repo / '.codex-plugin' / 'plugin.json').write_text('{"name":"unrelated"}')
+        (self.repo / '.codex-plugin' / 'plugin.json').write_text('{"name":"unrelated"}', encoding="utf-8")
         store.write_json(paths.path('synced.json'), {'source_repo': str(self.repo)})
         with mock.object(paths, 'REPO', str(self.cache)):
             with self.assertRaises(RuntimeError):

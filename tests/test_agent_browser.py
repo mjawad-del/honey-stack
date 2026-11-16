@@ -23,19 +23,19 @@ def agent_browser_bin():
 
 
 def reference_commands():
-    block = re.search(r"```sh\n(.*?)```", REFERENCE.read_text(), re.S)[1]
+    block = re.search(r"```sh\n(.*?)```", REFERENCE.read_text(encoding="utf-8"), re.S)[1]
     return [line.split()[1] for line in block.splitlines() if line.startswith("agent-browser ")]
 
 
 class QaSkill(unittest.TestCase):
     def test_qa_routes_live_browsing_to_the_reference(self):
-        skill = (ROOT / "skills/qa/SKILL.md").read_text()
+        skill = (ROOT / "skills/qa/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("(references/agent-browser.md)", skill)
         self.assertIn("prefer `agent-browser` when it is installed", skill)
         self.assertIn("references/agent-browser.md", skill.split("---", 2)[1])  # cited in sources
 
     def test_reference_keeps_the_fallback_and_safety_rules(self):
-        text = REFERENCE.read_text()
+        text = REFERENCE.read_text(encoding="utf-8")
         for rule in ("command -v agent-browser", "Playwright MCP or e2e", "user's approval",
                      "fresh snapshot", "close", "existing e2e suite"):
             with self.subTest(rule=rule):
@@ -46,7 +46,7 @@ class QaSkill(unittest.TestCase):
         exe = agent_browser_bin()
         if not exe:
             self.skipTest("agent-browser not installed (npm ci in evals/agent-browser)")
-        help_text = subprocess.run([exe, "--help"], capture_output=True, text=True, timeout=30).stdout
+        help_text = subprocess.run([exe, "--help"], capture_output=True, text=True, encoding="utf-8", timeout=30).stdout
         for command in set(reference_commands()):
             with self.subTest(command=command):
                 self.assertRegex(help_text, rf"(?m)^\s+{command}\b")
@@ -55,7 +55,7 @@ class QaSkill(unittest.TestCase):
     def test_benchmark_harness_parses(self):
         if not shutil.which("node"):
             self.skipTest("node not installed")
-        r = subprocess.run(["node", "--check", str(ROOT / "evals/agent-browser/run.mjs")], capture_output=True, text=True)
+        r = subprocess.run(["node", "--check", str(ROOT / "evals/agent-browser/run.mjs")], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
@@ -66,14 +66,14 @@ class LiveFlow(unittest.TestCase):
         exe = agent_browser_bin()
         if not exe or not shutil.which("node") or os.environ.get("HONEY_SKIP_BROWSER"):
             self.skipTest("agent-browser or node not installed")
-        server = subprocess.Popen(["node", str(FIXTURE)], stdout=subprocess.PIPE, text=True)
+        server = subprocess.Popen(["node", str(FIXTURE)], stdout=subprocess.PIPE, text=True, encoding="utf-8")
         session = f"honey-test-{os.getpid()}"
         out = tempfile.mkdtemp()
         try:
             url = server.stdout.readline().strip().split("=", 1)[1]
 
             def ab(*args):
-                r = subprocess.run([exe, *args, "--session", session], capture_output=True, text=True, timeout=60)
+                r = subprocess.run([exe, *args, "--session", session], capture_output=True, text=True, encoding="utf-8", timeout=60)
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 return r.stdout
 
@@ -107,11 +107,12 @@ class LiveFlow(unittest.TestCase):
 
 
 class Doctor(unittest.TestCase):
+    @unittest.skipIf(os.name == 'nt', 'fake CLI fixture is an extensionless script; Windows only runs .exe/.cmd')
     def test_detects_agent_browser_version_on_path(self):
         from honey import doctor
         bindir = tempfile.mkdtemp()
         fake = os.path.join(bindir, "agent-browser")
-        with open(fake, "w") as f:
+        with open(fake, "w", encoding="utf-8") as f:
             f.write("#!/bin/sh\necho 'agent-browser 9.8.7'\n")
         os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
         old = os.environ["PATH"]
@@ -132,25 +133,25 @@ class DeltaRetired(unittest.TestCase):
                 self.assertFalse((ROOT / path).exists())
         for name in ("README.md", "docs/skills.md", "skills/honey/SKILL.md", "skills/handoff/SKILL.md"):
             with self.subTest(doc=name):
-                self.assertNotRegex((ROOT / name).read_text(), r"`delta`|honey delta|delta\.dev")
+                self.assertNotRegex((ROOT / name).read_text(encoding="utf-8"), r"`delta`|honey delta|delta\.dev")
 
     def test_delta_command_explains_the_removal(self):
         home = tempfile.mkdtemp()
-        r = subprocess.run(HONEY + ["delta", "status"], capture_output=True, text=True, env=dict(os.environ, HOME=home))
+        r = subprocess.run(HONEY + ["delta", "status"], capture_output=True, text=True, encoding="utf-8", env=dict(os.environ, HOME=home))
         self.assertEqual(r.returncode, 2)
         self.assertIn("honey delta was removed", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertNotIn("delta", subprocess.run(HONEY + ["--help"], capture_output=True, text=True).stdout)
+        self.assertNotIn("delta", subprocess.run(HONEY + ["--help"], capture_output=True, text=True, encoding="utf-8").stdout)
 
     def test_retired_launch_agent_is_moved_to_backups(self):
         from honey import retired
         home, backups = tempfile.mkdtemp(), tempfile.mkdtemp()
         plist = retired.delta_plist(home)
         os.makedirs(os.path.dirname(plist))
-        Path(plist).write_text("<plist/>")
+        Path(plist).write_text("<plist/>", encoding="utf-8")
         moved = retired.retire_delta_service(home=home, backups=backups)
         self.assertFalse(os.path.exists(plist))
-        self.assertEqual(Path(moved).read_text(), "<plist/>")
+        self.assertEqual(Path(moved).read_text(encoding="utf-8"), "<plist/>")
         self.assertIsNone(retired.retire_delta_service(home=home, backups=backups))
 
     def test_install_retires_the_launch_agent_and_uninstall_keeps_it_retired(self):
@@ -159,16 +160,16 @@ class DeltaRetired(unittest.TestCase):
             os.makedirs(os.path.join(home, d))
         plist = Path(home, "Library/LaunchAgents/dev.honey.delta-capture.plist")
         plist.parent.mkdir(parents=True)
-        plist.write_text("<plist/>")
-        r = subprocess.run(HONEY + ["install", "--home", home, "--yes"], capture_output=True, text=True)
+        plist.write_text("<plist/>", encoding="utf-8")
+        r = subprocess.run(HONEY + ["install", "--home", home, "--yes"], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("honey delta was removed", r.stdout)
         self.assertFalse(plist.exists())
-        r = subprocess.run(HONEY + ["uninstall", "--home", home, "--yes"], capture_output=True, text=True)
+        r = subprocess.run(HONEY + ["uninstall", "--home", home, "--yes"], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse(plist.exists())
         backups = list(Path(home, ".honey/backups").rglob("dev.honey.delta-capture.plist"))
-        self.assertEqual([b.read_text() for b in backups], ["<plist/>"])
+        self.assertEqual([b.read_text(encoding="utf-8") for b in backups], ["<plist/>"])
 
 
 if __name__ == "__main__":

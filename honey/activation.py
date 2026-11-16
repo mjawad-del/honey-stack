@@ -14,7 +14,7 @@ END = '<!-- honey:global:end -->'
 
 
 def block(launcher: str, agent: str) -> str:
-    command = 'python3 ' + shlex.quote(launcher) + ' bootstrap --agent ' + agent
+    command = 'python3 ' + shlex.quote(paths.shell_path(launcher)) + ' bootstrap --agent ' + agent
     return (START + '\n## Honey global activation\n'
             'At the first user turn of each session, if no native `honey-stack active` startup context was supplied, '
             'run `' + command + '` and follow its returned workflow rules. Otherwise follow the supplied native Honey context. '

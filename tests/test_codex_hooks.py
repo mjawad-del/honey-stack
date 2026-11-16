@@ -13,6 +13,7 @@ from helpers import REPO
 from honey import codex_hooks, doctor, paths
 
 
+@unittest.skipIf(os.name == 'nt', 'fake CLI fixture is an extensionless script; Windows only runs .exe/.cmd')
 class CodexHooks(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -31,7 +32,7 @@ for line in sys.stdin:
     row = json.loads(line)
     if 'id' not in row:
         continue
-    with open(os.environ['REGISTRY_LOG'], 'a') as f:
+    with open(os.environ['REGISTRY_LOG'], 'a', encoding="utf-8") as f:
         f.write(json.dumps(row['method']) + '\\n')
     if row['method'] == 'initialize':
         result = {}
@@ -57,7 +58,7 @@ for line in sys.stdin:
         config = Path(paths.codex_dir(), 'config.toml')
         config.parent.mkdir(parents=True)
         config.write_text('[hooks.state."honey@honey-stack:hooks/codex-hooks.json:stop:0:0"]\n'
-                          'trusted_hash = "old-hash"\n')
+                          'trusted_hash = "old-hash"\n', encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = doctor.main(['--agent', 'codex', '--session', 'absent', '--json'])
@@ -65,7 +66,7 @@ for line in sys.stdin:
         self.assertEqual(result['hook_trust']['status'], 'review_required')
         self.assertEqual(result['hook_trust']['modified'], 9)
         self.assertEqual(code, 1)
-        self.assertEqual([json.loads(l) for l in self.log.read_text().splitlines()],
+        self.assertEqual([json.loads(l) for l in self.log.read_text(encoding="utf-8").splitlines()],
                          ['initialize', 'hooks/list'])
         self.assertFalse(Path(paths.home()).exists(), 'diagnostics must not write RSI state')
 

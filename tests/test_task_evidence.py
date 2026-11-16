@@ -24,11 +24,11 @@ class TaskEvidence(unittest.TestCase):
         return hook('codex', dict(self.base, hook_event_name=name, **fields))
 
     def state(self):
-        return json.loads(Path(self.tmp.name, 'state/sessions/codex-task.json').read_text())
+        return json.loads(Path(self.tmp.name, 'state/sessions/codex-task.json').read_text(encoding="utf-8"))
 
     def cli(self, *args):
         return subprocess.run([sys.executable, str(Path(REPO, 'bin/honey')), 'task', *args,
-                               '--agent', 'codex', '--session', 'task'], capture_output=True, text=True)
+                               '--agent', 'codex', '--session', 'task'], capture_output=True, text=True, encoding='utf-8')
 
     def begin_code(self):
         self.event('UserPromptSubmit', prompt='Fix the date parser')
@@ -39,7 +39,7 @@ class TaskEvidence(unittest.TestCase):
         """Stop is never blocked; return the advisory gap honey recorded for it, or None."""
         self.assertEqual(self.event('Stop', last_assistant_message=message), {})
         rows = [json.loads(line) for path in Path(self.tmp.name, 'events').glob('*/codex-task.jsonl')
-                for line in path.read_text().splitlines()]
+                for line in path.read_text(encoding="utf-8").splitlines()]
         stops = [i for i, r in enumerate(rows) if r['e'] == 'stop']
         after = rows[stops[-1] + 1:] if stops else []
         return next((r['reason'] for r in after if r['e'] == 'receipt_gap'), None)

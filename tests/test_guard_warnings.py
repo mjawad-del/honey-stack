@@ -42,7 +42,7 @@ class GuardWarnings(unittest.TestCase):
                         if agent == 'claude':
                             self.assertIn('Consider adding', out['hookSpecificOutput']['additionalContext'])
         events = [json.loads(line) for path in Path(self.home.name, 'events').glob('*/*.jsonl')
-                  for line in path.read_text().splitlines()]
+                  for line in path.read_text(encoding="utf-8").splitlines()]
         self.assertTrue(any(e.get('e') == 'guard' and e.get('learned') and e.get('decision') == 'warn'
                             for e in events))
 

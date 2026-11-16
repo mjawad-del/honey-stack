@@ -18,7 +18,7 @@ store.write_text(doc, "# personal\n")
 
 def cli(*args):
     return subprocess.run([sys.executable, os.path.join(REPO, "bin", "honey"), "rsi", *args],
-                          capture_output=True, text=True, env=dict(os.environ))
+                          capture_output=True, text=True, encoding="utf-8", env=dict(os.environ))
 
 
 def proposal(key, line="- WHEN testing → prove it"):
@@ -31,24 +31,24 @@ def proposal(key, line="- WHEN testing → prove it"):
 p = proposal("autonomous instruction")
 off = cli("catchup")
 assert off.returncode == 0, off.stderr
-assert open(doc).read() == "# personal\n"
+assert open(doc, encoding="utf-8").read() == "# personal\n"
 on = cli("autonomy", "on")
 assert on.returncode == 0, on.stderr
 assert "enabled" in on.stdout, on.stdout
 run = cli("catchup")
 assert run.returncode == 0, run.stderr
-assert "WHEN testing → prove it" in open(doc).read()
+assert "WHEN testing → prove it" in open(doc, encoding="utf-8").read()
 saved = store.read_json(paths.path("proposals", p["id"] + ".json"))
 assert saved["status"] == "applied" and saved["decision_source"] == "automatic", saved
 assert not os.path.exists(paths.path("golden.jsonl"))
-before = open(doc).read()
+before = open(doc, encoding="utf-8").read()
 assert cli("catchup").returncode == 0
-assert open(doc).read() == before
+assert open(doc, encoding="utf-8").read() == before
 assert "enabled" in cli("autonomy", "status").stdout
 assert cli("autonomy", "off").returncode == 0
 p2 = proposal("disabled instruction", "- disabled")
 assert cli("catchup").returncode == 0
-assert "- disabled" not in open(doc).read()
+assert "- disabled" not in open(doc, encoding="utf-8").read()
 assert store.read_json(paths.path("proposals", p2["id"] + ".json"))["status"] == "pending"
 
 # Audit-generated toolkit repairs have executable, scoped payloads and backups.
@@ -81,7 +81,7 @@ bad = review.add(1, "toolkit_fix", "diagnose", "unknown issue", "Investigate; do
 good = proposal("after bad diagnosis", "- still apply independent improvements")
 assert cli("catchup").returncode == 0
 assert guards.load()[0]["status"] == "active"
-assert "still apply independent improvements" in open(doc).read()
+assert "still apply independent improvements" in open(doc, encoding="utf-8").read()
 blocked = store.read_json(paths.path("proposals", bad["id"] + ".json"))
 assert blocked["status"] == "pending" and "structured" in blocked["last_error"], blocked
 assert not os.path.exists(paths.path("golden.jsonl"))

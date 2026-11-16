@@ -14,11 +14,11 @@ G = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=f
 
 
 def git(cwd, *a):
-    return subprocess.run([*G, *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run([*G, *a], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
 
 def commit(cwd, name, tag=None):
-    with open(os.path.join(cwd, name), "w") as f:
+    with open(os.path.join(cwd, name), "w", encoding="utf-8") as f:
         f.write(name)
     git(cwd, "add", name)
     git(cwd, "commit", "-qm", name)
@@ -54,11 +54,11 @@ with tempfile.TemporaryDirectory() as d:
 
     # local edits block the update and are left alone
     commit(origin, "f", "v0.10.1")
-    with open(os.path.join(clone, "a"), "w") as f:
+    with open(os.path.join(clone, "a"), "w", encoding="utf-8") as f:
         f.write("mine")
     r = autoupdate.update_checkout(clone)
     assert r["status"] == "skipped" and "local changes" in r["reason"], r
-    assert open(os.path.join(clone, "a")).read() == "mine"
+    assert open(os.path.join(clone, "a"), encoding="utf-8").read() == "mine"
     git(clone, "checkout", "--", "a")
 
     # a diverged checkout is never rewritten
@@ -113,7 +113,7 @@ with tempfile.TemporaryDirectory() as d:
 # run(): opt-out, throttle, one-time notice
 H = os.environ["HONEY_HOME"]
 os.makedirs(os.path.join(H, "state"), exist_ok=True)
-with open(os.path.join(H, "config.json"), "w") as f:
+with open(os.path.join(H, "config.json"), "w", encoding="utf-8") as f:
     json.dump({"autoupdate": False}, f)
 assert autoupdate.run()["status"] == "skipped"
 os.remove(os.path.join(H, "config.json"))
@@ -141,7 +141,7 @@ from helpers import ctx_text, hook  # noqa: E402
 
 os.environ["HONEY_NO_AUTOUPDATE"] = "1"          # no detached job from this probe
 
-with open(paths.path("state", "autoupdate.json"), "w") as f:
+with open(paths.path("state", "autoupdate.json"), "w", encoding="utf-8") as f:
     json.dump({"checked": time.time(), "pending_notice": {"from": "1.0.0", "to": "1.1.0"}}, f)
 out = ctx_text(hook("claude", {"session_id": "au", "cwd": "/tmp", "hook_event_name": "SessionStart", "source": "startup"}))
 assert "auto-updated 1.0.0 → 1.1.0" in out, out[-300:]

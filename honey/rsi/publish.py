@@ -13,7 +13,7 @@ from honey.rsi import review, store, text
 
 def command(args, *, env=None, input=None):
     result = subprocess.run(args, cwd=paths.source_repo(), env=env, input=input,
-                            capture_output=True, text=True, timeout=120)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     if result.returncode:
         raise RuntimeError(text.redact(result.stderr.strip(), 300) or 'Publication command failed')
     return result.stdout.strip()

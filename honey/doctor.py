@@ -48,7 +48,7 @@ def agent_browser() -> str:
     if not exe:
         return ""
     try:
-        r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10)
+        r = subprocess.run([exe, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return (r.stdout.strip().split() or [""])[-1] if r.returncode == 0 else ""
@@ -72,7 +72,7 @@ def smoke() -> tuple:
         t0 = time.time()
         r = subprocess.run([sys.executable, os.path.join(paths.REPO, "bin", "honey"), "hook", "--agent", "claude"],
                            input=json.dumps({"hook_event_name": "SessionStart", "source": "startup", "session_id": "doctor", "cwd": h}),
-                           capture_output=True, text=True, env=dict(os.environ, HONEY_HOME=h), timeout=10)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=dict(os.environ, HONEY_HOME=h), timeout=10)
         ms = int((time.time() - t0) * 1000)
     try:
         ok = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"].startswith("honey-stack active")
@@ -196,7 +196,7 @@ def main(argv: list) -> int:
     for agent in ("claude", "codex"):
         seen = sorted(e for (a, e) in last if a == agent)
         rep.ok(bool(seen), f"{agent}: events seen {', '.join(seen)}", f"{agent}: no events yet (start a session)", warn=True)
-    remotes = subprocess.run(["git", "-C", h, "remote"], capture_output=True, text=True).stdout.strip() if os.path.isdir(os.path.join(h, ".git")) else ""
+    remotes = subprocess.run(["git", "-C", h, "remote"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip() if os.path.isdir(os.path.join(h, ".git")) else ""
     rep.ok(not remotes, "~/.honey has no git remote (stays local)", f"~/.honey has a git remote: {remotes}")
     print(f"  info {len(review.pending())} items pending in /rsi review")
     print("all good" if not rep.fails else f"{rep.fails} problem(s)")

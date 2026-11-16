@@ -19,7 +19,7 @@ MAX_LLM_DIFFS, DIFF_CHARS, RADAR_USD = 5, 4000, 0.50
 
 
 def _git(*args, cwd=None, timeout=300):
-    return subprocess.run(["git", *(["-C", cwd] if cwd else []), *args], capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(["git", *(["-C", cwd] if cwd else []), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
 
 def friction_keywords(days: int = 30) -> set:

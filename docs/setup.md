@@ -4,7 +4,9 @@ Install, activation, response modes, hook checks, updates and uninstall. Back to
 
 ## Requirements
 
-Claude Code and/or Codex, `python3` 3.9+ and `git`. macOS and Linux; Windows isn't supported yet.
+Claude Code and/or Codex, `python3` 3.9+ and `git`. macOS, Linux and Windows.
+
+**Windows:** hooks run `python3`, so that exact command must work. Python from the python.org install manager or the Microsoft Store provides it; the classic python.org installer only adds `python` and `py`. Claude Code on Windows runs hooks through Git Bash, which comes with Git for Windows. `honey` is installed as a small launcher file at `~/.local/bin/honey` rather than a symlink, so you don't need Developer Mode. Not yet supported on Windows: RSI's autonomous skill patching (drafting and evaluating skill changes on its own); hooks, install, guard, task evidence and learnings work.
 
 ## Install
 
@@ -14,11 +16,17 @@ Claude Code and/or Codex, `python3` 3.9+ and `git`. macOS and Linux; Windows isn
 curl -fsSL https://raw.githubusercontent.com/umararshad4/honey-stack/main/install.sh | bash
 ```
 
+On Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/umararshad4/honey-stack/main/install.ps1 | iex
+```
+
 **Manual:**
 
 ```bash
 git clone https://github.com/umararshad4/honey-stack.git && cd honey-stack
-bin/honey install --dry-run && bin/honey install
+python3 bin/honey install --dry-run && python3 bin/honey install
 ```
 
 Either way, honey installs into both agents, puts `honey` on PATH and turns off competing always-on plugins. Every change is reversible. With many other skills installed, `honey install --skill-budget 0.02` gives skill descriptions more room (Claude only).

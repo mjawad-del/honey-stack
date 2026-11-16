@@ -38,28 +38,28 @@ class ApplyValidation(unittest.TestCase):
                      {'file': 'claude', 'action': 'remove', 'line': 'keep this'},
                      {'file': 'claude', 'action': 'edit', 'line': '- keep this entire line', 'replacement': ''}):
             self.rejects(instructions.apply, {'id': 'p-test', 'edit': edit})
-            self.assertEqual(Path(self.fp).read_text(), '- keep this entire line\n')
+            self.assertEqual(Path(self.fp).read_text(encoding="utf-8"), '- keep this entire line\n')
 
     def test_instruction_missing_proposal_id_is_not_applied(self):
         p = self.proposal()
         del p['id']
         self.rejects(instructions.apply, p)
-        self.assertEqual(Path(self.fp).read_text(), '- keep this entire line\n')
+        self.assertEqual(Path(self.fp).read_text(encoding="utf-8"), '- keep this entire line\n')
 
     def test_revert_preserves_later_edits(self):
         p = self.proposal()
         instructions.apply(p)
-        store.write_text(self.fp, Path(self.fp).read_text() + 'later edit\n')
+        store.write_text(self.fp, Path(self.fp).read_text(encoding="utf-8") + 'later edit\n')
         self.rejects(instructions.revert, p['id'])
-        self.assertIn('later edit', Path(self.fp).read_text())
+        self.assertIn('later edit', Path(self.fp).read_text(encoding="utf-8"))
         self.assertNotEqual(store.read_json(paths.path('proposals', p['id'] + '.json')).get('status'), 'reverted')
 
     def test_revert_and_heading(self):
         p = self.proposal()
         instructions.apply(p)
-        self.assertNotIn('approved in', Path(self.fp).read_text())
+        self.assertNotIn('approved in', Path(self.fp).read_text(encoding="utf-8"))
         instructions.revert(p['id'])
-        self.assertEqual(Path(self.fp).read_text(), '- keep this entire line\n')
+        self.assertEqual(Path(self.fp).read_text(encoding="utf-8"), '- keep this entire line\n')
 
     def test_guard_validation(self):
         valid = {'id': 'g-test', 'status': 'proposed', 'regex': '^git commit', 'unless_prompt': 'commit',
@@ -81,11 +81,11 @@ class ApplyValidation(unittest.TestCase):
         repo = os.path.join(self.tmp.name, 'repo')
         os.mkdir(repo)
         def git(*args):
-            return subprocess.run(['git', '-C', repo, *args], check=True, capture_output=True, text=True).stdout.strip()
+            return subprocess.run(['git', '-C', repo, *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout.strip()
         git('init', '-q'); git('config', 'user.email', 'test@example.com'); git('config', 'user.name', 'Test')
         store.write_text(os.path.join(repo, 'skill'), 'before\n')
         fixture_root = Path(__file__).resolve().parents[1] / 'evals'
-        for name in ['behavioral.json', *json.loads((fixture_root / 'behavioral.json').read_text())['cases']]:
+        for name in ['behavioral.json', *json.loads((fixture_root / 'behavioral.json').read_text(encoding="utf-8"))['cases']]:
             source, target = fixture_root / name, Path(repo, 'evals', name)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(source, target) if source.is_dir() else shutil.copy2(source, target)
@@ -140,7 +140,7 @@ class ApplyValidation(unittest.TestCase):
         repo, git, p, commit = self.repo()
         start = git('rev-parse', 'HEAD')
         git('checkout', '-q', p['branch'])
-        Path(repo, 'evals/behavior-preserve-readonly/graders/state.md').write_text('tampered')
+        Path(repo, 'evals/behavior-preserve-readonly/graders/state.md').write_text('tampered', encoding="utf-8")
         git('commit', '-qam', 'change grader')
         p['patch_sha'] = git('rev-parse', 'HEAD')
         git('checkout', '-q', '-')
@@ -151,7 +151,7 @@ class ApplyValidation(unittest.TestCase):
     def test_neighboring_case_drift_blocks_application(self):
         repo, git, p, commit = self.repo()
         start = git('rev-parse', 'HEAD')
-        Path(repo, 'evals/prior/prompt.md').write_text('different behavior')
+        Path(repo, 'evals/prior/prompt.md').write_text('different behavior', encoding="utf-8")
         with self.assertRaisesRegex(ValueError, 'fixture changed'):
             patch.accept(p)
         self.assertEqual(git('rev-parse', 'HEAD'), start)
@@ -186,10 +186,10 @@ class ApplyValidation(unittest.TestCase):
         p = {'id': 'p-edit', 'edit': {'file': 'claude', 'action': 'edit',
              'line': '- keep this entire line', 'replacement': '- replacement'}}
         instructions.apply(p)
-        self.assertEqual(Path(self.fp).read_text(), '- replacement\n')
+        self.assertEqual(Path(self.fp).read_text(encoding="utf-8"), '- replacement\n')
         p = {'id': 'p-remove', 'edit': {'file': 'claude', 'action': 'remove', 'line': '- replacement'}}
         instructions.apply(p)
-        self.assertEqual(Path(self.fp).read_text(), '')
+        self.assertEqual(Path(self.fp).read_text(encoding="utf-8"), '')
 
     def test_patch_dirty_target_and_diverged(self):
         repo, git, p, commit = self.repo()
@@ -204,8 +204,8 @@ class ApplyValidation(unittest.TestCase):
         repo, git, p, commit = self.repo()
         store.write_text(os.path.join(repo, 'unrelated'), 'user edit')
         patch.accept(p)
-        self.assertEqual(Path(repo, 'unrelated').read_text(), 'user edit')
-        self.assertEqual(Path(repo, 'skill').read_text(), 'after\n')
+        self.assertEqual(Path(repo, 'unrelated').read_text(encoding="utf-8"), 'user edit')
+        self.assertEqual(Path(repo, 'skill').read_text(encoding="utf-8"), 'after\n')
         self.assertEqual(git('rev-parse', 'HEAD'), commit)
 
     def test_patch_cooldown_begins_after_successful_application(self):

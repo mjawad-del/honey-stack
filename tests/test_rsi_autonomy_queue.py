@@ -42,7 +42,7 @@ class Queue(unittest.TestCase):
         self.save(p)
         curate.forget(b["id"])
         self.run_queue()
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertEqual(f.read(), "# mine\n")
         self.assertEqual(store.read_json(paths.path("proposals", p["id"] + ".json"))["status"], "pending")
 
@@ -69,7 +69,7 @@ class Queue(unittest.TestCase):
             p = self.instruction(decision)
             review.decide(p["id"], decision)
         self.run_queue()
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertEqual(f.read(), "# mine\n")
 
     def test_catchup_does_not_reflect_paused_sessions(self):
@@ -88,7 +88,7 @@ class Queue(unittest.TestCase):
         self.assertEqual(items[0].get("bullet_ids"), [b["id"]])
         curate.forget(b["id"])
         self.run_queue()
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertEqual(f.read(), "# mine\n")
 
     def test_cached_runtime_statusline_uses_stable_launcher(self):
@@ -111,7 +111,7 @@ class Queue(unittest.TestCase):
         result = self.run_queue()
         self.assertEqual(result["applied"], [])
         self.assertIn("source", result["blocked"][0]["reason"])
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertEqual(f.read(), "# mine\n")
 
 

@@ -118,7 +118,7 @@ def command_kind(command):
     # Composite commands need an explicit mapped check; their final exit code can mask a failure.
     if not words or any(re.fullmatch(r'[;&|<>()]+', w) for w in words):
         return None
-    exe, args = os.path.basename(words[0]), words[1:]
+    exe, args = re.sub(r'\.(?:exe|cmd|bat)$', '', re.split(r'[\\/]', words[0])[-1], flags=re.I), words[1:]
     if re.fullmatch(r'python(?:3(?:\.\d+)?)?', exe.lower()):
         exe = 'python3'
     if exe in ('python', 'python3') and args and os.path.abspath(args[0]) == os.path.join(paths.REPO, 'bin', 'honey'):
@@ -126,7 +126,7 @@ def command_kind(command):
     if exe == 'honey' and (args[:1] == ['doctor'] or len(args) > 1 and args[0] == 'task' and args[1] in ('status', 'set', 'verify', 'run')):
         return 'read'  # bookkeeping changes evidence, not the task's target state
     # A redirected project/test path needs an explicitly mapped check, not automatic credit.
-    external = any(a.split('=', 1)[-1].startswith(('/', '../', '~/'))
+    external = any(a.split('=', 1)[-1].startswith(('/', '../', '~/', '..\\')) or re.match(r'[A-Za-z]:[\\/]', a.split('=', 1)[-1])
                    or a.split('=', 1)[0] in ('-C', '--cwd', '--prefix', '--directory', '--rootdir', '--git-dir', '--work-tree')
                    for a in args)
     check = None if external else 'check'

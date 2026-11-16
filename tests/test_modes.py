@@ -1,6 +1,7 @@
 """Response modes through the public hook and CLI entrypoints."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -14,9 +15,9 @@ from honey import modes
 
 class ResponseModes(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.home = Path(self.tmp.name)
+        self.home = Path(tempfile.mkdtemp())
+        # A detached RSI job may still hold logs/jobs.log open (Windows refuses to delete it then).
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
         self.env = patch.dict(os.environ, HONEY_HOME=str(self.home), HONEY_NO_AUTOUPDATE='1')
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -39,21 +40,21 @@ class ResponseModes(unittest.TestCase):
 
     def cli(self, *args, payload=None):
         result = subprocess.run([sys.executable, str(Path(REPO, 'bin/honey')), *args],
-                                input=json.dumps(payload) if payload else '', capture_output=True, text=True)
+                                input=json.dumps(payload) if payload else '', capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout
 
     def test_saved_defaults_preserve_other_settings_and_apply_to_new_sessions(self):
         config = self.home / 'config.json'
         config.write_text(json.dumps({'modes': {'scope': 'ultra', 'process': 'strict', 'voice': 'terse'},
-                                      'budgets': {'enabled': False}, 'rsi': {'autonomous': True}}))
+                                      'budgets': {'enabled': False}, 'rsi': {'autonomous': True}}), encoding="utf-8")
         for mode in ('explain', 'balance', 'direct'):
             with self.subTest(mode=mode):
                 result = ctx_text(hook('codex', {'session_id': 'saving', 'cwd': REPO,
                                                 'hook_event_name': 'UserPromptSubmit',
                                                 'prompt': '$honey default ' + mode}))
                 self.assertIn('(saved as default)', result)
-                self.assertEqual(json.loads(config.read_text()),
+                self.assertEqual(json.loads(config.read_text(encoding="utf-8")),
                                  {'mode': mode, 'budgets': {'enabled': False}, 'rsi': {'autonomous': True}})
                 boot = ctx_text(hook('codex', {'session_id': 'new-' + mode, 'cwd': REPO,
                                               'hook_event_name': 'SessionStart', 'source': 'startup'}))
@@ -63,7 +64,7 @@ class ResponseModes(unittest.TestCase):
         config = self.home / 'config.json'
         for voice, expected in (('terse', 'direct'), ('normal', 'balance')):
             with self.subTest(voice=voice):
-                config.write_text(json.dumps({'modes': {'scope': 'ultra', 'process': 'strict', 'voice': voice}}))
+                config.write_text(json.dumps({'modes': {'scope': 'ultra', 'process': 'strict', 'voice': voice}}), encoding="utf-8")
                 before = config.read_bytes()
                 output = self.cli('bootstrap', '--agent', 'codex', '--session', 'missing')
                 self.assertIn('🍯 HONEY · ' + expected + ' · hooks unverified', output)
@@ -78,17 +79,17 @@ class ResponseModes(unittest.TestCase):
         self.assertIn('skills/honey/references/update-hooks.md', output)
 
     def test_existing_session_choice_wins_over_the_global_default(self):
-        (self.home / 'config.json').write_text('{"mode":"explain"}')
+        (self.home / 'config.json').write_text('{"mode":"explain"}', encoding="utf-8")
         state = self.home / 'state/sessions/claude-legacy.json'
         state.parent.mkdir(parents=True)
         state.write_text(json.dumps({'started': 'earlier', 'scope': 'ultra', 'process': 'strict',
-                                     'voice': 'normal', 'project': 'sample', 'brief': '', 'turn': 1}))
+                                     'voice': 'normal', 'project': 'sample', 'brief': '', 'turn': 1}), encoding="utf-8")
         self.assertIn('[HONEY:balance]', self.cli('statusline', payload={'session_id': 'legacy'}))
         self.assertIn('mode=balance.', self.cli('bootstrap', '--agent', 'claude', '--session', 'legacy'))
         resumed = ctx_text(hook('claude', {'session_id': 'legacy', 'cwd': REPO,
                                           'hook_event_name': 'SessionStart', 'source': 'compact'}))
         self.assertIn('mode=balance.', resumed)
-        saved = json.loads(state.read_text())
+        saved = json.loads(state.read_text(encoding="utf-8"))
         self.assertEqual(saved['mode'], 'balance')
         self.assertFalse({'scope', 'process', 'voice'} & set(saved))
         self.assertIn('[HONEY:explain]', self.cli('statusline', payload={'session_id': 'missing'}))
@@ -114,7 +115,7 @@ class ResponseModes(unittest.TestCase):
         config = self.home / 'config.json'
         for value in (None, [], True, {'mode': 'unknown'}, {'modes': None}, {'mode': []}, {'modes': {'voice': []}}):
             with self.subTest(value=value):
-                config.write_text(json.dumps(value))
+                config.write_text(json.dumps(value), encoding="utf-8")
                 self.assertEqual(modes.defaults(), {'mode': 'direct'})
 
 

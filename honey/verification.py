@@ -1,13 +1,13 @@
 """Run a real check and bind its result to a Git working-tree snapshot."""
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import os
 import shlex
 import subprocess
 import time
 
+from honey import filelock
 from honey.rsi import store, text
 
 
@@ -63,9 +63,7 @@ def run(file, check, argv):
     from honey import tasks
     if not argv or tasks.command_kind(shlex.join(argv)) != 'check':
         raise ValueError('task run requires a recognized test, lint, typecheck or diff-check command')
-    fd = os.open(file + '.verification.lock', os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(fd, 'w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with filelock.exclusive(file + '.verification.lock'):
         with store.session_lock(file):
             state = store.read_json(file, {}) or {}
             task = state.get('task') or {}

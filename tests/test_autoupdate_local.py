@@ -3,7 +3,6 @@ import json
 import os
 import contextlib
 import io
-import fcntl
 import subprocess
 import sys
 import tempfile
@@ -21,6 +20,7 @@ GIT = ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
        "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]
 
 
+@unittest.skipIf(os.name == 'nt', 'fake codex CLI fixture is an extensionless script; Windows only runs .exe/.cmd')
 class LocalMarketplaceUpdate(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -33,8 +33,8 @@ class LocalMarketplaceUpdate(unittest.TestCase):
         self.git(self.origin, "init", "-q", "-b", "main")
         (self.origin / ".codex-plugin").mkdir()
         (self.origin / "honey").mkdir()
-        (self.origin / ".codex-plugin" / "plugin.json").write_text('{"name":"honey","version":"1.0.0"}')
-        (self.origin / "honey" / "__init__.py").write_text('__version__ = "1.0.0"\n')
+        (self.origin / ".codex-plugin" / "plugin.json").write_text('{"name":"honey","version":"1.0.0"}', encoding="utf-8")
+        (self.origin / "honey" / "__init__.py").write_text('__version__ = "1.0.0"\n', encoding="utf-8")
         self.git(self.origin, "add", ".codex-plugin/plugin.json", "honey/__init__.py")
         self.git(self.origin, "commit", "-qm", "first release")
         self.git(self.origin, "tag", "v1.0.0")
@@ -43,7 +43,7 @@ class LocalMarketplaceUpdate(unittest.TestCase):
         self.old_head = self.git(self.checkout, "rev-parse", "HEAD")
         self.cache = self.root / "codex" / "plugins" / "cache" / "honey-stack" / "honey" / "1.0.0"
         self.cache.mkdir(parents=True)
-        (self.root / "codex" / "config.toml").write_text('[marketplaces.honey-stack]\nsource_type = "local"\n')
+        (self.root / "codex" / "config.toml").write_text('[marketplaces.honey-stack]\nsource_type = "local"\n', encoding="utf-8")
         self.codex = self.root / "codex-cli"
         self.codex.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, sys
@@ -57,10 +57,10 @@ elif args == ["plugin", "add", "honey@honey-stack"]:
     source = root / "source checkout"
     if pathlib.Path.cwd().resolve() != source.resolve():
         sys.exit(3)
-    version = json.loads((source / ".codex-plugin" / "plugin.json").read_text())["version"]
+    version = json.loads((source / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
     cache = root / "codex" / "plugins" / "cache" / "honey-stack" / "honey" / version
     cache.mkdir(parents=True, exist_ok=True)
-    (cache / "installed-version").write_text(version)
+    (cache / "installed-version").write_text(version, encoding="utf-8")
 else:
     sys.exit(2)
 ''')
@@ -86,11 +86,11 @@ else:
         store.write_json(paths.path("synced.json"), {"source_repo": str(self.checkout), "head": self.old_head})
 
     def git(self, cwd, *args):
-        return subprocess.run([*GIT, "-C", str(cwd), *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run([*GIT, "-C", str(cwd), *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
     def release(self):
-        (self.origin / ".codex-plugin" / "plugin.json").write_text('{"name":"honey","version":"1.1.0"}')
-        (self.origin / "honey" / "__init__.py").write_text('__version__ = "1.1.0"\n')
+        (self.origin / ".codex-plugin" / "plugin.json").write_text('{"name":"honey","version":"1.1.0"}', encoding="utf-8")
+        (self.origin / "honey" / "__init__.py").write_text('__version__ = "1.1.0"\n', encoding="utf-8")
         self.git(self.origin, "add", ".codex-plugin/plugin.json", "honey/__init__.py")
         self.git(self.origin, "commit", "-qm", "second release")
         self.git(self.origin, "tag", "v1.1.0")
@@ -101,7 +101,7 @@ else:
         result = autoupdate.run()
         self.assertEqual(result.get("status"), "updated", result)
         self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), new_head)
-        self.assertEqual((self.cache.parent / "1.1.0" / "installed-version").read_text(), "1.1.0")
+        self.assertEqual((self.cache.parent / "1.1.0" / "installed-version").read_text(encoding="utf-8"), "1.1.0")
         self.assertEqual(store.read_json(paths.path("synced.json"))["head"], new_head)
         self.assertIn("1.0.0 → 1.1.0", autoupdate.notice())
 
@@ -111,7 +111,7 @@ else:
         result = autoupdate.run(force=True)
         self.assertEqual(result.get('status'), 'updated', result)
         self.assertEqual(self.git(self.checkout, 'rev-parse', 'HEAD'), new_head)
-        self.assertEqual((self.cache.parent / '1.1.0' / 'installed-version').read_text(), '1.1.0')
+        self.assertEqual((self.cache.parent / '1.1.0' / 'installed-version').read_text(encoding="utf-8"), '1.1.0')
 
     def test_cli_exposes_explicit_release_check(self):
         with patch.object(autoupdate, 'run', return_value={'status': 'current'}) as run:
@@ -131,15 +131,15 @@ else:
         self.release()
         env = dict(os.environ, PATH=str(toolbin) + os.pathsep + os.environ.get('PATH', ''))
         result = subprocess.run([sys.executable, str(self.cache / 'bin' / 'honey'), 'autoupdate', '--now'],
-                                cwd=self.root, env=env, capture_output=True, text=True, check=True)
+                                cwd=self.root, env=env, capture_output=True, text=True, encoding="utf-8", check=True)
         self.assertEqual(json.loads(result.stdout)['to'], '1.1.0')
-        self.assertEqual((self.cache.parent / '1.1.0' / 'installed-version').read_text(), '1.1.0')
+        self.assertEqual((self.cache.parent / '1.1.0' / 'installed-version').read_text(encoding="utf-8"), '1.1.0')
 
     def test_explicit_check_does_not_run_alongside_an_update(self):
         lockfile = Path(paths.path('state', 'autoupdate.lock'))
         lockfile.parent.mkdir(parents=True, exist_ok=True)
-        with lockfile.open('w') as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        from honey import filelock
+        with filelock.exclusive(str(lockfile)):
             result = autoupdate.run(force=True)
         self.assertEqual(result['status'], 'skipped')
         self.assertIn('in progress', result['reason'])
@@ -148,11 +148,11 @@ else:
         result = autoupdate.run(force=True)
         self.assertEqual(result.get('status'), 'current', result)
         self.assertTrue(result.get('refreshed'), result)
-        self.assertEqual((self.cache / 'installed-version').read_text(), '1.0.0')
+        self.assertEqual((self.cache / 'installed-version').read_text(encoding="utf-8"), '1.0.0')
         self.assertEqual(autoupdate.notice(), '')
 
     def test_explicit_check_does_not_install_unreleased_main(self):
-        (self.origin / 'unreleased.txt').write_text('unreleased')
+        (self.origin / 'unreleased.txt').write_text('unreleased', encoding="utf-8")
         self.git(self.origin, 'add', 'unreleased.txt')
         self.git(self.origin, 'commit', '-qm', 'unreleased main')
         self.git(self.checkout, 'pull', '--ff-only', '-q')
@@ -162,8 +162,8 @@ else:
         self.assertFalse((self.cache / 'installed-version').exists())
 
     def test_explicit_check_does_not_refresh_an_older_tagged_release(self):
-        (self.origin / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey","version":"0.9.0"}')
-        (self.origin / 'honey' / '__init__.py').write_text('__version__ = "0.9.0"\n')
+        (self.origin / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey","version":"0.9.0"}', encoding="utf-8")
+        (self.origin / 'honey' / '__init__.py').write_text('__version__ = "0.9.0"\n', encoding="utf-8")
         self.git(self.origin, 'add', '.codex-plugin/plugin.json', 'honey/__init__.py')
         self.git(self.origin, 'commit', '-qm', 'older version on main')
         self.git(self.origin, 'tag', 'v0.9.0')
@@ -182,7 +182,7 @@ else:
 
     def test_explicit_check_does_not_update_a_dirty_checkout(self):
         self.release()
-        (self.checkout / 'honey' / '__init__.py').write_text('# local edit\n')
+        (self.checkout / 'honey' / '__init__.py').write_text('# local edit\n', encoding="utf-8")
         result = autoupdate.run(force=True)
         self.assertEqual(result['status'], 'skipped')
         self.assertIn('local changes', result['reason'])
@@ -208,15 +208,15 @@ else:
         (self.root / 'fail-refresh').touch()
         self.assertEqual(autoupdate.run()['status'], 'skipped')
         (self.root / 'fail-refresh').unlink()
-        (self.origin / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey","version":"1.2.0"}')
-        (self.origin / 'honey' / '__init__.py').write_text('__version__ = "1.2.0"\n')
+        (self.origin / '.codex-plugin' / 'plugin.json').write_text('{"name":"honey","version":"1.2.0"}', encoding="utf-8")
+        (self.origin / 'honey' / '__init__.py').write_text('__version__ = "1.2.0"\n', encoding="utf-8")
         self.git(self.origin, 'add', '.codex-plugin/plugin.json', 'honey/__init__.py')
         self.git(self.origin, 'commit', '-qm', 'third release')
         self.git(self.origin, 'tag', 'v1.2.0')
         result = autoupdate.run(force=True)
         self.assertEqual(result.get('to'), '1.2.0', result)
         self.assertEqual(self.git(self.checkout, 'rev-parse', 'HEAD'), self.git(self.origin, 'rev-parse', 'HEAD'))
-        self.assertEqual((self.cache.parent / '1.2.0' / 'installed-version').read_text(), '1.2.0')
+        self.assertEqual((self.cache.parent / '1.2.0' / 'installed-version').read_text(encoding="utf-8"), '1.2.0')
 
     def test_feature_branch_is_not_reported_ready_when_release_is_current(self):
         self.git(self.checkout, 'switch', '-c', 'feature/local-work')
@@ -225,7 +225,7 @@ else:
         self.assertIn('not on main', result['reason'])
 
     def test_local_main_commits_are_not_reported_ready(self):
-        (self.checkout / 'local.txt').write_text('local work')
+        (self.checkout / 'local.txt').write_text('local work', encoding="utf-8")
         self.git(self.checkout, 'add', 'local.txt')
         self.git(self.checkout, 'commit', '-qm', 'local work')
         result = autoupdate.run()
@@ -247,7 +247,7 @@ else:
         store.write_json(paths.path("state", "autoupdate.json"), state)
         result = autoupdate.run()
         self.assertEqual(result.get("status"), "updated", result)
-        self.assertEqual((self.cache.parent / "1.1.0" / "installed-version").read_text(), "1.1.0")
+        self.assertEqual((self.cache.parent / "1.1.0" / "installed-version").read_text(encoding="utf-8"), "1.1.0")
         self.assertEqual(store.read_json(paths.path("synced.json"))["head"], new_head)
 
     def test_pending_refresh_does_not_install_later_local_edits(self):
@@ -255,7 +255,7 @@ else:
         (self.root / "fail-refresh").touch()
         self.assertEqual(autoupdate.run().get("status"), "skipped")
         (self.root / "fail-refresh").unlink()
-        (self.checkout / "honey" / "__init__.py").write_text("# local edit\n")
+        (self.checkout / "honey" / "__init__.py").write_text("# local edit\n", encoding="utf-8")
         state = store.read_json(paths.path("state", "autoupdate.json"))
         state["checked"] = 0
         store.write_json(paths.path("state", "autoupdate.json"), state)
@@ -293,7 +293,7 @@ else:
 
     def test_dirty_checkout_is_not_updated_or_refreshed(self):
         self.release()
-        (self.checkout / "honey" / "__init__.py").write_text("# local edit\n")
+        (self.checkout / "honey" / "__init__.py").write_text("# local edit\n", encoding="utf-8")
         result = autoupdate.run()
         self.assertEqual(result.get("status"), "skipped", result)
         self.assertIn("local changes", result.get("reason", ""))
@@ -301,7 +301,7 @@ else:
         self.assertFalse((self.cache.parent / "1.1.0").exists())
 
     def test_failed_remote_plugin_refresh_does_not_report_current(self):
-        (self.root / "codex" / "config.toml").write_text('[marketplaces.honey-stack]\nsource_type = "git"\n')
+        (self.root / "codex" / "config.toml").write_text('[marketplaces.honey-stack]\nsource_type = "git"\n', encoding="utf-8")
         # A Claude executable alone must not cause an attempt to install its plugin.
         with patch.object(install, "_cli", return_value=str(self.codex)):
             result = autoupdate.run()
@@ -312,7 +312,7 @@ else:
     def test_disabled_codex_plugin_is_not_reenabled(self):
         config = self.root / "codex" / "config.toml"
         config.write_text('[marketplaces.honey-stack]\nsource_type = "local"\n'
-                          '[plugins."honey@honey-stack"]\nenabled = false\n')
+                          '[plugins."honey@honey-stack"]\nenabled = false\n', encoding="utf-8")
         self.release()
         result = autoupdate.run()
         self.assertEqual(result.get("status"), "skipped", result)
@@ -324,7 +324,7 @@ else:
         subprocess.run([*GIT, "clone", "-q", str(self.origin), str(other)], check=True)
         claude = self.root / "claude"
         (claude / "plugins").mkdir(parents=True)
-        (claude / "settings.json").write_text(json.dumps({"enabledPlugins": {"honey@honey-stack": True}}))
+        (claude / "settings.json").write_text(json.dumps({"enabledPlugins": {"honey@honey-stack": True}}), encoding="utf-8")
         (claude / "plugins" / "known_marketplaces.json").write_text(json.dumps(
             {"honey-stack": {"source": {"source": "directory", "path": str(other)}}}))
         self.release()

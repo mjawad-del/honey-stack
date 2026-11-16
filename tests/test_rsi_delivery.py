@@ -122,19 +122,19 @@ class Installation(unittest.TestCase):
         patch.dict(os.environ,HONEY_HOME=str(Path(self.tmp.name,'state')),CODEX_HOME=str(Path(self.tmp.name,'codex'))).start()
         patch.object(paths,'source_repo',return_value=str(self.root)).start()
         self.git('init','-q','-b','main');self.git('config','user.name','Test');self.git('config','user.email','test@example.invalid')
-        (self.root/'honey').mkdir(); (self.root/'honey/module.py').write_text('before')
+        (self.root/'honey').mkdir(); (self.root/'honey/module.py').write_text('before', encoding="utf-8")
         self.git('add','.');self.git('commit','-qm','base');base=self.git('rev-parse','HEAD')
-        (self.root/'honey/module.py').write_text('after');(self.root/'private-evaluation').write_text('private')
+        (self.root/'honey/module.py').write_text('after', encoding="utf-8");(self.root/'private-evaluation').write_text('private', encoding="utf-8")
         self.git('add','.');self.git('commit','-qm','local applied patch');self.private=self.git('rev-parse','HEAD')
         subprocess.run(['git','init','--bare','-q',str(self.remote)],check=True)
         self.git('remote','add','origin',str(self.remote));self.git('push','-q','origin',base+':refs/heads/main')
         public=Path(self.tmp.name,'public')
         subprocess.run(['git','clone','-q','-b','main',str(self.remote),str(public)],check=True)
         def git(*args):
-            return subprocess.check_output(['git','-C',str(public),*args],text=True,stderr=subprocess.DEVNULL).strip()
+            return subprocess.check_output(['git','-C',str(public),*args],text=True, encoding='utf-8',stderr=subprocess.DEVNULL).strip()
         git('config','user.name','Test');git('config','user.email','test@example.invalid')
-        (public/'honey/module.py').write_text('after');git('commit','-qam','public patch');self.merged=git('rev-parse','HEAD')
-        (public/'version').write_text('1.1.0');git('add','.');git('commit','-qm','release');git('tag','v1.1.0')
+        (public/'honey/module.py').write_text('after', encoding="utf-8");git('commit','-qam','public patch');self.merged=git('rev-parse','HEAD')
+        (public/'version').write_text('1.1.0', encoding="utf-8");git('add','.');git('commit','-qm','release');git('tag','v1.1.0')
         self.released=git('rev-parse','HEAD');git('push','origin','main','--tags')
         self.git('fetch','origin','main','--tags')
         self.p={'id':'p-test','patch_sha':self.private,'application':{'merged_sha':self.private},'delivery':{'sha':self.merged}}
@@ -143,7 +143,7 @@ class Installation(unittest.TestCase):
         self.sync=patch('honey.install.sync',side_effect=self.install).start()
 
     def git(self,*args):
-        return subprocess.check_output(['git','-C',str(self.root),*args],text=True,stderr=subprocess.DEVNULL).strip()
+        return subprocess.check_output(['git','-C',str(self.root),*args],text=True, encoding='utf-8',stderr=subprocess.DEVNULL).strip()
 
     def install(self, env):
         cache=Path(paths.codex_dir(),'plugins/cache/honey-stack/honey/1.1.0/honey')
@@ -163,15 +163,15 @@ class Installation(unittest.TestCase):
 
     def test_local_work_is_preserved_and_install_waits(self):
         from honey.rsi import delivery
-        (self.root/'user-work').write_text('keep')
+        (self.root/'user-work').write_text('keep', encoding="utf-8")
         with self.assertRaises(ValueError):delivery.install_release(self.p,self.settings)
         self.assertEqual(self.git('rev-parse','HEAD'),self.private)
-        self.assertEqual((self.root/'user-work').read_text(),'keep')
+        self.assertEqual((self.root/'user-work').read_text(encoding="utf-8"),'keep')
         self.sync.assert_not_called()
 
     def test_later_local_commit_cannot_be_replaced(self):
         from honey.rsi import delivery
-        (self.root/'user-work').write_text('keep');self.git('add','.');self.git('commit','-qm','user commit')
+        (self.root/'user-work').write_text('keep', encoding="utf-8");self.git('add','.');self.git('commit','-qm','user commit')
         head=self.git('rev-parse','HEAD')
         with self.assertRaises(ValueError):delivery.install_release(self.p,self.settings)
         self.assertEqual(self.git('rev-parse','HEAD'),head)
@@ -183,7 +183,7 @@ class Installation(unittest.TestCase):
         def edit_after_switch(*args,**kwargs):
             result=original(*args,**kwargs)
             if args[:2]==('switch','-c'):
-                (self.root/'honey/module.py').write_text('concurrent edit')
+                (self.root/'honey/module.py').write_text('concurrent edit', encoding="utf-8")
             return result
         with patch.object(publish,'git',side_effect=edit_after_switch):
             with self.assertRaises(ValueError):delivery.install_release(self.p,self.settings)
@@ -203,7 +203,7 @@ class Installation(unittest.TestCase):
         from honey.rsi import delivery
         def sync(env):
             self.install(env)
-            (self.root/'honey/module.py').write_text('concurrent edit')
+            (self.root/'honey/module.py').write_text('concurrent edit', encoding="utf-8")
             return 0
         self.sync.side_effect=sync
         with self.assertRaises(ValueError):delivery.install_release(self.p,self.settings)
@@ -212,7 +212,7 @@ class Installation(unittest.TestCase):
         from honey.rsi import delivery
         def sync(env):
             self.install(env)
-            Path(paths.codex_dir(),'plugins/cache/honey-stack/honey/1.1.0/honey/module.py').write_text('wrong')
+            Path(paths.codex_dir(),'plugins/cache/honey-stack/honey/1.1.0/honey/module.py').write_text('wrong', encoding="utf-8")
             return 0
         self.sync.side_effect=sync
         with self.assertRaises(ValueError):delivery.install_release(self.p,self.settings)

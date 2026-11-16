@@ -16,6 +16,18 @@ def ensure_dir(p: str) -> str:
     return p
 
 
+def replace(src: str, dst: str) -> None:
+    """os.replace, retried briefly: Windows refuses to replace a file another process has open."""
+    for attempt in range(40):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == 39:
+                raise
+            time.sleep(0.025)
+
+
 def append_jsonl(file: str, obj: dict) -> None:
     ensure_dir(os.path.dirname(file))
     line = (json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
@@ -46,19 +58,19 @@ def read_jsonl(file: str) -> list:
 def write_json(file: str, obj, sort=False) -> None:
     ensure_dir(os.path.dirname(file))
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1, sort_keys=sort)
         f.write("\n")
-    os.replace(tmp, file)
+    replace(tmp, file)
 
 
 def write_jsonl(file: str, rows: list) -> None:
     ensure_dir(os.path.dirname(file))
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n")
-    os.replace(tmp, file)
+    replace(tmp, file)
 
 
 def read_json(file: str, default=None):
@@ -72,42 +84,40 @@ def read_json(file: str, default=None):
 def write_text(file: str, text: str) -> None:
     ensure_dir(os.path.dirname(file))
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
+    with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         f.write(text)
-    os.replace(tmp, file)
+    replace(tmp, file)
 
 
 @contextlib.contextmanager
 def session_lock(file):
     """Serialize each session's read/modify/write without blocking other sessions."""
-    import fcntl
+    from honey import filelock
     ensure_dir(os.path.dirname(file))
-    fd = os.open(file + '.lock', os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+    with filelock.exclusive(file + '.lock'):
         yield
-    finally:
-        os.close(fd)
 
 
 @contextlib.contextmanager
 def lock(blocking=True, timeout=None):
     """Exclusive lock on ~/.honey/.lock. Yields False if non-blocking (or `timeout` seconds pass) while held."""
-    import fcntl
+    from honey import filelock
     ensure_dir(paths.home())
     fd = os.open(paths.path(".lock"), os.O_RDWR | os.O_CREAT, 0o600)
     deadline = None if timeout is None else time.monotonic() + timeout
     try:
-        while True:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking and deadline is None else fcntl.LOCK_NB))
-                break
-            except BlockingIOError:
+        if blocking and deadline is None:
+            filelock.lock(fd)
+        else:
+            while not filelock.try_lock(fd):
                 if deadline is None or time.monotonic() >= deadline:
                     yield False
                     return
                 time.sleep(0.05)
-        yield True
+        try:
+            yield True
+        finally:
+            filelock.unlock(fd)
     finally:
         os.close(fd)
 
@@ -121,7 +131,7 @@ def git_commit(message: str) -> bool:
     ensure_dir(h)
 
     def git(*args):
-        return subprocess.run(["git", "-C", h, *args], capture_output=True, text=True, timeout=20)
+        return subprocess.run(["git", "-C", h, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
 
     if not os.path.isdir(os.path.join(h, ".git")):
         git("init", "-q")

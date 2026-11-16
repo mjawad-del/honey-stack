@@ -82,6 +82,12 @@ def _cli(name: str):
     return None
 
 
+def launcher(target: str) -> str:
+    """A tiny Python file that runs bin/honey in place, for systems without unprivileged symlinks."""
+    return ("#!/usr/bin/env python3\n# honey-stack launcher (written by honey install; uninstall removes it)\n"
+            f"import runpy\nrunpy.run_path({target!r}, run_name='__main__')\n")
+
+
 # ---- planning -------------------------------------------------------------------------------------------------
 
 def _plan_settings(env: Env, steps: list) -> None:
@@ -110,7 +116,7 @@ def _plan_settings(env: Env, steps: list) -> None:
             plugins_before[p] = True
             s["enabledPlugins"][p] = False
     sl_before = s.get("statusLine")
-    sl_new = {"type": "command", "command": f'python3 "{os.path.join(paths.REPO, "bin", "honey")}" statusline'}
+    sl_new = {"type": "command", "command": f'python3 "{paths.shell_path(os.path.join(paths.REPO, "bin", "honey"))}" statusline'}
     if sl_before != sl_new:
         s["statusLine"] = sl_new
     new = json.dumps(s, indent=2, ensure_ascii=False) + "\n"
@@ -276,8 +282,13 @@ def plan(env: Env) -> list:
             source = paths.source_repo()
         except RuntimeError:
             source = paths.REPO
-        steps.append({'kind': 'symlink', 'path': link, 'target': os.path.join(source, 'bin', 'honey'),
-                      'summary': f'link {link} → source bin/honey'})
+        target = os.path.join(source, 'bin', 'honey')
+        if os.name == 'nt':  # symlinks need Developer Mode or admin on Windows; a launcher file needs neither
+            steps.append({'kind': 'write_new', 'path': link, 'content': launcher(target), 'old': None,
+                          'summary': f'write launcher {link} → source bin/honey'})
+        else:
+            steps.append({'kind': 'symlink', 'path': link, 'target': target,
+                          'summary': f'link {link} → source bin/honey'})
     return steps
 
 
@@ -289,7 +300,7 @@ def _write_preserving_mode(fp: str, data: str) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(data)
     os.chmod(tmp, mode)
-    os.replace(tmp, fp)
+    store.replace(tmp, fp)
 
 
 def _apply(env: Env, st: dict) -> dict:
@@ -300,7 +311,7 @@ def _apply(env: Env, st: dict) -> dict:
         if not exe:
             raise RuntimeError(f"{st['agent']} CLI not found")
         for c in st["cmds"]:
-            r = subprocess.run([exe, *c], capture_output=True, text=True, timeout=180)
+            r = subprocess.run([exe, *c], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
             if r.returncode != 0 and "already" not in (r.stdout + r.stderr).lower():
                 raise RuntimeError(f"{st['agent']} {' '.join(c)} failed: {(r.stderr or r.stdout)[-400:]}")
     elif k == 'instruction_block':
@@ -393,7 +404,7 @@ def _undo(rec: dict) -> str:
         exe = _cli(rec["agent"])
         for c in rec["undo_cmds"]:
             if exe:
-                subprocess.run([exe, *c], capture_output=True, text=True, timeout=180)
+                subprocess.run([exe, *c], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
         return f"ran {rec['agent']} {' / '.join(' '.join(c) for c in rec['undo_cmds'])}"
     if k in ("edit_json", "edit_toml", "replace_file"):
         cur = _read(rec["file"])
@@ -529,11 +540,11 @@ def sync(env: Env) -> int:
         print("codex CLI not found")
         return 1
     source = paths.source_repo()
-    head = subprocess.run(["git", "-C", source, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+    head = subprocess.run(["git", "-C", source, "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
     if head.returncode != 0 or not head.stdout.strip():
         print("cannot resolve Honey source HEAD")
         return 1
-    r = subprocess.run([exe, "plugin", "add", PLUGIN], capture_output=True, text=True, timeout=180)
+    r = subprocess.run([exe, "plugin", "add", PLUGIN], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     print((r.stdout or r.stderr).strip())
     if r.returncode != 0:
         return r.returncode
@@ -545,7 +556,7 @@ def sync(env: Env) -> int:
 def update(env: Env) -> int:
     """Pull the latest release into this checkout, then refresh Codex's copy. Claude reads the checkout directly."""
     from honey import __version__ as before
-    r = subprocess.run(["git", "-C", paths.REPO, "pull", "--ff-only", "--tags", "-q"], capture_output=True, text=True, timeout=180)
+    r = subprocess.run(["git", "-C", paths.REPO, "pull", "--ff-only", "--tags", "-q"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     if r.returncode != 0:
         print("git pull failed (local changes or diverged branch?):\n" + (r.stderr or r.stdout).strip())
         return 1

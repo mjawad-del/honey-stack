@@ -56,11 +56,11 @@ class Publication(unittest.TestCase):
 
     def write(self, name, text):
         target = self.root / name; target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text)
+        target.write_text(text, encoding="utf-8")
 
     def git(self, *args):
         return subprocess.run(['git', '-C', str(self.root), *args], check=True,
-                              capture_output=True, text=True).stdout.strip()
+                              capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
     def save(self):
         store.write_json(paths.path('proposals', self.p['id'] + '.json'), self.p)
@@ -75,7 +75,7 @@ class Publication(unittest.TestCase):
         if args[:2] == ('issue', 'create'):
             self.issue_creates += 1
             title = args[args.index('--title') + 1]
-            body = Path(args[args.index('--body-file') + 1]).read_text()
+            body = Path(args[args.index('--body-file') + 1]).read_text(encoding="utf-8")
             self.issues.append({'url': 'https://github.com/example/honey/issues/' + str(self.issue_creates),
                                 'title': title, 'body': body, 'state': 'open', 'state_reason': None})
             return self.issues[-1]['url']
@@ -180,7 +180,7 @@ class Publication(unittest.TestCase):
 
     def test_rejected_push_preserves_applied_state_and_retries(self):
         hook = self.remote / 'hooks/pre-receive'
-        hook.write_text('#!/bin/sh\nexit 1\n'); hook.chmod(0o755)
+        hook.write_text('#!/bin/sh\nexit 1\n', encoding="utf-8"); hook.chmod(0o755)
         self.assertEqual(len(self.run_publish()['blocked']), 1)
         saved = store.read_json(paths.path('proposals', 'p-test.json'))
         self.assertEqual(saved['status'], 'applied')

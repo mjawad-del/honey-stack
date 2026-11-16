@@ -22,7 +22,7 @@ GIT_ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0")        # a background fetch 
 
 
 def _git(repo: str, *args: str, timeout: int = 60):
-    return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout, env=GIT_ENV)
+    return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, env=GIT_ENV)
 
 
 def _key(tag: str):
@@ -97,7 +97,7 @@ def _update_plugins(repo: str) -> dict:
         if exe:
             ran = True
             for c in cmds:
-                if subprocess.run([exe, *c], capture_output=True, text=True, timeout=180, env=GIT_ENV).returncode != 0:
+                if subprocess.run([exe, *c], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, env=GIT_ENV).returncode != 0:
                     failed.append(agent)
                     break
     if not ran:
@@ -163,7 +163,7 @@ def _local_install():
     disabled = re.search(r"(?m)^\s*enabled\s*=\s*false\s*(?:#.*)?$", plugin)
     kind = _codex_marketplace_type(sections)
     if codex and not disabled and (kind == "local" or (recorded and kind != "git")):
-        listing = subprocess.run([codex, "plugin", "marketplace", "list"], capture_output=True, text=True,
+        listing = subprocess.run([codex, "plugin", "marketplace", "list"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=180, env=GIT_ENV)
         if listing.returncode != 0:
             raise RuntimeError("cannot inspect the Codex marketplace")
@@ -206,7 +206,7 @@ def _refresh_local(source: str, pending: dict, agents: list) -> dict:
         if agent not in agents or not exe:
             return {"status": "skipped", "reason": f"{agent} local marketplace changed while refresh was pending"}
         cmd = ["plugin", "add", install.PLUGIN] if agent == "codex" else ["plugin", "update", install.PLUGIN]
-        if subprocess.run([exe, *cmd], cwd=source, capture_output=True, text=True, timeout=180, env=GIT_ENV).returncode != 0:
+        if subprocess.run([exe, *cmd], cwd=source, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, env=GIT_ENV).returncode != 0:
             return {"status": "skipped", "reason": f"{agent} plugin refresh failed; will retry"}
     store.write_json(paths.path("synced.json"), {"ts": time.strftime("%Y%m%dT%H%M%S"),
                                                  "head": pending["head"], "source_repo": source})
@@ -217,16 +217,20 @@ def run(force: bool = False) -> dict:
     """Run at most one update check at a time, including explicit checks."""
     if not enabled():
         return {"status": "skipped", "reason": "autoupdate off"}
-    import fcntl
+    from honey import filelock
     lock_path = paths.path("state", "autoupdate.lock")
     try:
         store.ensure_dir(os.path.dirname(lock_path))
-        with os.fdopen(os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600), "r+") as lock:
-            try:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            if not filelock.try_lock(fd):
                 return {"status": "skipped", "reason": "update check already in progress"}
-            return _run(force)
+            try:
+                return _run(force)
+            finally:
+                filelock.unlock(fd)
+        finally:
+            os.close(fd)
     except OSError as exc:
         return {"status": "skipped", "reason": f"update lock failed: {exc}"}
 

@@ -49,7 +49,7 @@ class AutonomyJobs(unittest.TestCase):
         saved = store.read_json(paths.path("proposals", item["id"] + ".json"))
         self.assertEqual(saved["status"], "applied")
         self.assertEqual(saved["decision_source"], "automatic")
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertIn("WHEN finishing → show proof", f.read())
         self.assertEqual(store.read_jsonl(paths.path("golden.jsonl")), [])
 
@@ -58,7 +58,7 @@ class AutonomyJobs(unittest.TestCase):
         autonomy.configure(False)
         self.run_weekly()
         self.assertEqual(store.read_json(paths.path("proposals", item["id"] + ".json"))["status"], "pending")
-        with open(self.doc) as f:
+        with open(self.doc, encoding="utf-8") as f:
             self.assertEqual(f.read(), "# personal\n")
 
     def test_paused_hooks_do_not_spawn(self):
@@ -188,6 +188,7 @@ class AutonomyJobs(unittest.TestCase):
                          "ponytail@ponytail": False, "my-plugin@example": True})
         self.assert_settings_backup(saved, original)
 
+    @unittest.skipIf(os.name == 'nt', 'broken skill symlinks are a POSIX install artifact')
     def test_broken_link_repair_preserves_live_link_and_undo_target(self):
         directory = os.path.join(paths.claude_dir(), "skills")
         os.makedirs(directory)
@@ -232,6 +233,7 @@ class AutonomyJobs(unittest.TestCase):
         self.assertEqual(result["blocked"][0]["id"], item["id"])
         self.assertEqual(store.read_json(fp), current)
 
+    @unittest.skipIf(os.name == 'nt', 'broken skill symlinks are a POSIX install artifact')
     def test_changed_broken_link_blocks_and_preserves_new_target(self):
         directory = os.path.join(paths.claude_dir(), "skills")
         os.makedirs(directory)

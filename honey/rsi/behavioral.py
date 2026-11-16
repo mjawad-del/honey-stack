@@ -25,7 +25,7 @@ def _files(base: Path) -> dict:
         if path.is_symlink():
             raise ValueError("behavioral fixtures cannot contain symlinks")
         if path.is_file():
-            files[str(path.relative_to(base)) if path != base else path.name] = (
+            files[path.relative_to(base).as_posix() if path != base else path.name] = (
                 path.stat().st_mode & 0o777, path.read_bytes())
     return files
 
@@ -48,7 +48,7 @@ def snapshot(root: str, eval_dir: str = "evals") -> dict:
     base = Path(root, eval_dir)
     try:
         manifest_files = _files(base / MANIFEST)
-        manifest = json.loads((base / MANIFEST).read_text())
+        manifest = json.loads((base / MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ValueError("maintained behavioral manifest is missing or invalid") from exc
     if not isinstance(manifest, dict):

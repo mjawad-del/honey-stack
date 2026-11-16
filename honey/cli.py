@@ -27,6 +27,9 @@ def statusline() -> int:
 
 
 def main(argv: list) -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles default to cp1252, which cannot print the indicator
+        if (getattr(stream, "encoding", "") or "").lower().replace("-", "") != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     if not argv or argv[0] in ("-h", "--help"):
         print("usage: honey install | uninstall | update | autoupdate | doctor | bootstrap --agent claude|codex | task status|set|verify|run | sync | rsi … | statusline | --version | hook --agent claude|codex")
         return 0

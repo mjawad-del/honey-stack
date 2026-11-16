@@ -169,4 +169,7 @@ def spawn(args: list) -> None:
     env = dict(os.environ, RSI_CHILD="1", HONEY_OFF="1")
     log = open(store.ensure_dir(paths.path("logs")) + "/jobs.log", "ab")
     subprocess.Popen([sys.executable, os.path.join(paths.REPO, "bin", "honey"), *args], stdin=subprocess.DEVNULL,
-                     stdout=log, stderr=log, close_fds=True, start_new_session=True, env=env, cwd=paths.home())
+                     stdout=log, stderr=log, close_fds=True, start_new_session=True, env=env, cwd=paths.home(),
+                     # Windows: detach so the job survives the hook and opens no console window
+                     creationflags=(subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                                    | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0)

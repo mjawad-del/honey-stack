@@ -66,7 +66,7 @@ class AutomaticRelease(unittest.TestCase):
                 if self.create_failure:
                     raise RuntimeError('GitHub temporarily unavailable')
                 tag = args[3]
-                notes = Path(args[args.index('--notes-file') + 1]).read_text()
+                notes = Path(args[args.index('--notes-file') + 1]).read_text(encoding="utf-8")
                 self.assertTrue(notes.strip())
                 url = 'https://github.com/example/honey/releases/tag/' + tag
                 self.releases.append({'tag_name': tag, 'html_url': url, 'draft': False})
@@ -76,11 +76,11 @@ class AutomaticRelease(unittest.TestCase):
         patch.object(auto_release, 'command', side_effect=command).start()
 
     def write(self, name, content):
-        path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(content)
+        path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(content, encoding="utf-8")
 
     def git(self, *args):
         return subprocess.run(['git', '-C', str(self.root), *args], check=True,
-                              capture_output=True, text=True).stdout.strip()
+                              capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
     def test_release_pushes_consistent_metadata_and_tag_then_publishes(self):
         result = auto_release.run(self.expected)
@@ -160,7 +160,7 @@ class AutomaticRelease(unittest.TestCase):
         self.assertEqual(self.git('rev-parse', 'HEAD'), self.expected)
 
     def test_tests_mutating_source_block_release(self):
-        self.write('tests/run.py', 'from pathlib import Path\nPath("feature.txt").write_text("modified")\n')
+        self.write('tests/run.py', 'from pathlib import Path\nPath("feature.txt").write_text("modified", encoding="utf-8")\n')
         self.git('commit', '-qam', 'test: change source'); self.git('push', '-q', 'origin', 'main')
         expected = self.git('rev-parse', 'HEAD')
         with self.assertRaisesRegex(ValueError, 'outside release metadata'):
@@ -171,7 +171,7 @@ class AutomaticRelease(unittest.TestCase):
     def test_tests_committing_source_block_release(self):
         self.write('tests/run.py', '''from pathlib import Path
 import subprocess
-Path("feature.txt").write_text("changed during tests")
+Path("feature.txt").write_text("changed during tests", encoding="utf-8")
 subprocess.run(["git", "add", "feature.txt"], check=True)
 subprocess.run(["git", "commit", "-qm", "unverified change"], check=True)
 ''')

@@ -22,20 +22,20 @@ class VerificationRunner(unittest.TestCase):
         self.git('init', '-q')
         self.git('config', 'user.name', 'Test'); self.git('config', 'user.email', 'test@example.invalid')
         (self.project / 'tests').mkdir()
-        (self.project / 'tests/check.py').write_text('print("actual check passed")\n')
-        (self.project / 'source.py').write_text('value = 1\n')
+        (self.project / 'tests/check.py').write_text('print("actual check passed")\n', encoding="utf-8")
+        (self.project / 'source.py').write_text('value = 1\n', encoding="utf-8")
         self.git('add', '.'); self.git('commit', '-qm', 'fixture')
         self.event('UserPromptSubmit', prompt='Fix the source')
 
     def git(self, *args):
-        return subprocess.check_output(['git', '-C', str(self.project), *args], text=True).strip()
+        return subprocess.check_output(['git', '-C', str(self.project), *args], text=True, encoding='utf-8').strip()
 
     def event(self, name, **fields):
         return hook('codex', dict(session_id='runner', cwd=str(self.project), hook_event_name=name, **fields))
 
     def cli(self, *args):
         return subprocess.run([sys.executable, str(Path(REPO, 'bin/honey')), 'task', *args],
-                              cwd=self.project, text=True, capture_output=True)
+                              cwd=self.project, text=True, encoding="utf-8", capture_output=True)
 
     def run_check(self):
         return self.cli('run', '--agent', 'codex', '--session', 'runner', '--check', 'verification',
@@ -53,12 +53,12 @@ class VerificationRunner(unittest.TestCase):
         self.event('PostToolUse', tool_name='functions.exec', tool_input={'code': 'opaque host wrapper'},
                    tool_response={'output': 'untrusted text'}, tool_use_id='outer')
         self.assertEqual(self.status()['missing_checks'], [])
-        (self.project / 'source.py').write_text('value = 2\n')
+        (self.project / 'source.py').write_text('value = 2\n', encoding="utf-8")
         self.assertIn('verification', self.status()['missing_checks'])
 
     def test_failed_rerun_cannot_reuse_success(self):
         self.assertEqual(self.run_check().returncode, 0)
-        (self.project / 'tests/check.py').write_text('raise SystemExit(1)\n')
+        (self.project / 'tests/check.py').write_text('raise SystemExit(1)\n', encoding="utf-8")
         self.assertNotEqual(self.run_check().returncode, 0)
         self.assertIn('verification', self.status()['missing_checks'])
 
@@ -69,7 +69,7 @@ class VerificationRunner(unittest.TestCase):
             'from pathlib import Path\nimport time\nPath(' + repr(str(marker)) + ').touch()\ntime.sleep(0.5)\n')
         process = subprocess.Popen([sys.executable, str(Path(REPO, 'bin/honey')), 'task', 'run',
             '--agent', 'codex', '--session', 'runner', '--check', 'verification', '--',
-            sys.executable, 'tests/check.py'], cwd=self.project, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            sys.executable, 'tests/check.py'], cwd=self.project, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
         try:
             deadline = time.monotonic() + 10
             while not marker.exists() and time.monotonic() < deadline:
@@ -85,7 +85,7 @@ class VerificationRunner(unittest.TestCase):
                 process.kill(); process.communicate()
 
     def test_command_that_changes_source_cannot_verify_itself(self):
-        (self.project / 'tests/check.py').write_text('from pathlib import Path\nPath("source.py").write_text("changed")\n')
+        (self.project / 'tests/check.py').write_text('from pathlib import Path\nPath("source.py").write_text("changed")\n', encoding="utf-8")
         self.assertNotEqual(self.run_check().returncode, 0)
         self.assertIn('verification', self.status()['missing_checks'])
 
@@ -162,14 +162,14 @@ class VerificationRunner(unittest.TestCase):
     def test_snapshot_covers_symlinks_subfolders_and_worktrees(self):
         from honey import verification
         (self.project / 'link').symlink_to('/etc/hosts')
-        (self.project / 'pkg').mkdir(); (self.project / 'pkg/mod.py').write_text('x = 1\n')
+        (self.project / 'pkg').mkdir(); (self.project / 'pkg/mod.py').write_text('x = 1\n', encoding="utf-8")
         self.git('add', '.'); self.git('commit', '-qm', 'link')
         root = verification.snapshot(str(self.project))
         self.assertEqual(verification.snapshot(str(self.project / 'pkg')), root)
         tree = Path(self.tmp.name, 'tree')
         self.git('worktree', 'add', '-q', str(tree))
         before = verification.snapshot(str(tree))
-        (tree / 'pkg/mod.py').write_text('x = 2\n')
+        (tree / 'pkg/mod.py').write_text('x = 2\n', encoding="utf-8")
         self.assertNotEqual(verification.snapshot(str(tree / 'pkg')), before)
 
 

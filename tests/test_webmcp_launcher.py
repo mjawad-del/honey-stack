@@ -21,7 +21,7 @@ STRIPS_TYPES = bool(NODE) and subprocess.run(
     [NODE, "--input-type=module", "-e", f"await import({json.dumps(str(HELPER))})"],
     capture_output=True).returncode == 0
 CORES = int(subprocess.run([NODE, "-p", "require('node:os').availableParallelism()"],
-                           capture_output=True, text=True).stdout) if NODE else 1
+                           capture_output=True, text=True, encoding="utf-8").stdout) if NODE else 1
 
 BROWSER = """#!/usr/bin/env node
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -85,6 +85,7 @@ poll();
 
 
 @unittest.skipUnless(NODE, "WebMCP launcher needs Node.js")
+@unittest.skipIf(os.name == 'nt', 'launcher cleanup tests rely on POSIX signals and process groups')
 class WebMCPLauncherTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -97,22 +98,22 @@ class WebMCPLauncherTests(unittest.TestCase):
         self.tmp = self.root / "tmp"
         self.tmp.mkdir()
         self.browser = self.root / "browser.mjs"
-        self.browser.write_text(BROWSER)
+        self.browser.write_text(BROWSER, encoding="utf-8")
         self.browser.chmod(0o700)
         modules = self.root / "node_modules"
         self.playwright = modules / "playwright-core"
         self.playwright.mkdir(parents=True)
         (self.playwright / "index.js").write_text(
             "exports.chromium = { executablePath: () => process.env.HONEY_TEST_BROWSER };\n"
-        )
+        , encoding="utf-8")
         engine = modules / "@e2e-dev/web"
         engine.mkdir(parents=True)
-        (engine / "package.json").write_text(json.dumps({"name": "@e2e-dev/web", "main": "index.js"}))
-        (engine / "index.js").write_text("")
+        (engine / "package.json").write_text(json.dumps({"name": "@e2e-dev/web", "main": "index.js"}), encoding="utf-8")
+        (engine / "index.js").write_text("", encoding="utf-8")
         e2e = modules / "e2e"
         e2e.mkdir()
-        (e2e / "package.json").write_text(json.dumps({"name": "e2e", "main": "cli.cjs", "bin": {"e2e": "cli.cjs"}}))
-        (e2e / "cli.cjs").write_text(E2E)
+        (e2e / "package.json").write_text(json.dumps({"name": "e2e", "main": "cli.cjs", "bin": {"e2e": "cli.cjs"}}), encoding="utf-8")
+        (e2e / "cli.cjs").write_text(E2E, encoding="utf-8")
         self.env = {
             **os.environ,
             "PATH": str(Path(NODE).parent) + os.pathsep + os.environ.get("PATH", ""),
@@ -129,7 +130,7 @@ class WebMCPLauncherTests(unittest.TestCase):
             path.unlink()
 
     def assert_cleaned_up(self):
-        browsers = [json.loads(p.read_text()) for p in self.audit.glob("[0-9]*.json")]
+        browsers = [json.loads(p.read_text(encoding="utf-8")) for p in self.audit.glob("[0-9]*.json")]
         self.assertTrue(browsers, "No browser was started")
         for browser in browsers:
             with self.assertRaises(ProcessLookupError):
@@ -142,7 +143,7 @@ class WebMCPLauncherTests(unittest.TestCase):
         result = subprocess.run(
             [NODE, str(LAUNCHER), "run", *args], cwd=self.root,
             env={**self.env, "HONEY_TEST_EXIT": str(expect or 0), **env},
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding="utf-8", timeout=10,
         )
         finished_at = time.time() * 1000
         if expect is None:
@@ -151,7 +152,7 @@ class WebMCPLauncherTests(unittest.TestCase):
             self.assertEqual(result.returncode, expect, result.stderr)
         browsers = self.assert_cleaned_up()
         audit = self.audit / "e2e.json"
-        runner = None if audit_optional and not audit.exists() else json.loads(audit.read_text())
+        runner = None if audit_optional and not audit.exists() else json.loads(audit.read_text(encoding="utf-8"))
         return browsers, runner, result, finished_at, time.monotonic() - started
 
     def test_completed_browser_does_not_wait_for_unused_shutdown_deadline(self):
@@ -212,7 +213,7 @@ class WebMCPLauncherTests(unittest.TestCase):
         process = subprocess.Popen(
             [NODE, str(LAUNCHER), "run", "--workers", "2"], cwd=self.root,
             env={**self.env, "HONEY_TEST_HOLD": "1", "HONEY_TEST_TERM_DELAY": "1000"},
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
         )
         deadline = time.monotonic() + 5
         while not (self.audit / "ready").exists():
@@ -224,7 +225,7 @@ class WebMCPLauncherTests(unittest.TestCase):
         _, stderr = process.communicate(timeout=10)
         self.assertEqual(process.returncode, 1, stderr)
         self.assert_cleaned_up()
-        self.assertEqual(json.loads((self.audit / "e2e.json").read_text())["terms"], 2,
+        self.assertEqual(json.loads((self.audit / "e2e.json").read_text(encoding="utf-8"))["terms"], 2,
                          "A repeated interrupt was not forwarded to e2e")
 
     @unittest.skipIf(os.name != "posix" or os.geteuid() == 0, "Needs an undeletable directory")
@@ -232,7 +233,7 @@ class WebMCPLauncherTests(unittest.TestCase):
         result = subprocess.run(
             [NODE, str(LAUNCHER), "run", "--workers", "1"], cwd=self.root,
             env={**self.env, "HONEY_TEST_EXIT": "0", "HONEY_TEST_LOCK": "1"},
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding="utf-8", timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("could not remove", result.stderr)
@@ -264,7 +265,7 @@ class WebMCPProviderTests(unittest.TestCase):
         result = subprocess.run(
             [NODE, "--input-type=module", "-e",
              f"const {{ webmcpBrowsers: p }} = await import({json.dumps(str(HELPER))});\n{script}"],
-            env={**os.environ, **env}, capture_output=True, text=True, timeout=10,
+            env={**os.environ, **env}, capture_output=True, text=True, encoding="utf-8", timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
@@ -272,7 +273,7 @@ class WebMCPProviderTests(unittest.TestCase):
     def test_leases_spread_over_browsers_and_wait_for_their_ports(self):
         with tempfile.TemporaryDirectory() as temp:
             first, second = Path(temp) / "a", Path(temp) / "b"
-            first.write_text("41001\n")
+            first.write_text("41001\n", encoding="utf-8")
             out = self.provider("""
 const { writeFileSync } = await import('node:fs');
 setTimeout(() => writeFileSync(process.env.SECOND, '41002\\n'), 200);

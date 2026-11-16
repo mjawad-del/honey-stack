@@ -81,7 +81,7 @@ def _child_env() -> dict:
 def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = "haiku", only: str = None):
     """(structured_output dict, usd, engine) using Claude if installed, else Codex (or just `only`). Raises on failure."""
     if os.environ.get("HONEY_FAKE_LLM"):  # tests: canned reflector output, no paid call
-        with open(os.environ["HONEY_FAKE_LLM"]) as f:
+        with open(os.environ["HONEY_FAKE_LLM"], encoding="utf-8") as f:
             return json.load(f), 0.0, "fake"
     found = [e for e in engines() if only in (None, e[0])]
     if not found:
@@ -93,7 +93,7 @@ def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = 
                "--output-format", "json", "--json-schema", json.dumps(schema)]
         if dollar_caps_enabled():
             cmd += ["--max-budget-usd", str(max_usd)]
-        r = subprocess.run(cmd, input=user, capture_output=True, text=True, timeout=180, env=_child_env(), cwd=paths.home())
+        r = subprocess.run(cmd, input=user, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, env=_child_env(), cwd=paths.home())
         out = json.loads(r.stdout or "{}")
         if r.returncode != 0 or out.get("is_error"):
             raise RuntimeError(f"claude -p failed: {(r.stderr or r.stdout)[-300:]}")
@@ -103,20 +103,20 @@ def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = 
         return so, out.get("total_cost_usd"), "claude"
     with tempfile.TemporaryDirectory() as d:
         sf, of = os.path.join(d, "schema.json"), os.path.join(d, "out.json")
-        with open(sf, "w") as f:
+        with open(sf, "w", encoding="utf-8") as f:
             json.dump(schema, f)
         cmd = [exe, "exec", "--ephemeral", "--skip-git-repo-check", "--ignore-user-config", "--disable", "hooks",
                "-s", "read-only", "-C", d, "--output-schema", sf, "-o", of, "-"]
-        r = subprocess.run(cmd, input=system + "\n\n---\n\n" + user, capture_output=True, text=True, timeout=240, env=_child_env())
+        r = subprocess.run(cmd, input=system + "\n\n---\n\n" + user, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240, env=_child_env())
         if r.returncode != 0 or not os.path.exists(of):
             raise RuntimeError(f"codex exec failed: {(r.stderr or r.stdout)[-300:]}")
-        with open(of) as f:
+        with open(of, encoding="utf-8") as f:
             return json.loads(f.read()), None, "codex"
 
 
 def _processed() -> dict:
     done = {}
-    for line in (open(paths.path("processed.log")).read().splitlines() if os.path.exists(paths.path("processed.log")) else []):
+    for line in (open(paths.path("processed.log"), encoding="utf-8").read().splitlines() if os.path.exists(paths.path("processed.log")) else []):
         parts = line.split("\t")
         if len(parts) >= 4:
             done[parts[1]] = int(parts[3]) if parts[3].isdigit() else 0
@@ -126,7 +126,7 @@ def _processed() -> dict:
 def _failures() -> dict:
     """Consecutive failed reflections per session; deferrals neither count nor reset."""
     out = {}
-    for line in (open(paths.path("processed.log")).read().splitlines() if os.path.exists(paths.path("processed.log")) else []):
+    for line in (open(paths.path("processed.log"), encoding="utf-8").read().splitlines() if os.path.exists(paths.path("processed.log")) else []):
         parts = line.split("\t")
         if len(parts) >= 3 and not parts[2].startswith("deferred:"):
             out[parts[1]] = out.get(parts[1], 0) + 1 if parts[2].startswith(("failed:", "error:")) else 0

@@ -25,7 +25,7 @@ class RuntimeSnapshot(unittest.TestCase):
         self.write('skills/debug/SKILL.md', 'Reproduce first.\n')
         self.write('honey/runtime.py', 'old = True\n')
         self.write('hooks/remove.py', 'old = True\n')
-        for name in ['behavioral.json', *json.loads(Path(REPO, 'evals/behavioral.json').read_text())['cases']]:
+        for name in ['behavioral.json', *json.loads(Path(REPO, 'evals/behavioral.json').read_text(encoding="utf-8"))['cases']]:
             source, target = Path(REPO, 'evals', name), self.root / 'evals' / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(source, target) if source.is_dir() else shutil.copy2(source, target)
@@ -36,10 +36,10 @@ class RuntimeSnapshot(unittest.TestCase):
         store.write_text(str(self.root / name), content)
 
     def git(self, *args):
-        return subprocess.run(['git', '-C', str(self.root), *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(['git', '-C', str(self.root), *args], check=True, capture_output=True, text=True, encoding='utf-8').stdout.strip()
 
     def evaluate(self, root, pattern, out, eval_dir='evals'):
-        changed = Path(root, 'skills/debug/SKILL.md').read_text() == 'Reproduce and verify.\n'
+        changed = Path(root, 'skills/debug/SKILL.md').read_text(encoding="utf-8") == 'Reproduce and verify.\n'
         return {p.name: (1 if p.name.startswith('behavior-') else int(changed))
                 for p in Path(root, eval_dir).iterdir() if p.is_dir() and fnmatch.fnmatch(p.name, pattern)}
 
@@ -67,7 +67,7 @@ class RuntimeSnapshot(unittest.TestCase):
         def evaluate(root, pattern, out, eval_dir='evals'):
             result = self.evaluate(root, pattern, out, eval_dir)
             path = next(Path(root, 'evals').glob('rsi-debug-*/graders/trigger.md'))
-            path.write_text('tampered grader')
+            path.write_text('tampered grader', encoding="utf-8")
             return result
         with self.assertRaisesRegex(ValueError, 'fixture|grader'):
             self.draft(evaluate)
@@ -76,7 +76,7 @@ class RuntimeSnapshot(unittest.TestCase):
         def evaluate(root, pattern, out, eval_dir='evals'):
             result = self.evaluate(root, pattern, out, eval_dir)
             path = Path(root, eval_dir, 'behavior-preserve-readonly/graders/state.md')
-            path.write_text('tampered grader')
+            path.write_text('tampered grader', encoding="utf-8")
             return result
         with self.assertRaisesRegex(ValueError, 'fixture|grader'):
             self.draft(evaluate)
@@ -112,8 +112,8 @@ class RuntimeSnapshot(unittest.TestCase):
         (self.root / 'hooks/remove.py').unlink()
         self.write('honey/__pycache__/ignored.pyc', 'cached')
         def evaluate(root, pattern, out, eval_dir="evals"):
-            self.assertEqual(Path(root, 'honey/runtime.py').read_text(), 'current = True\n')
-            self.assertEqual(Path(root, 'honey/new.py').read_text(), 'new = True\n')
+            self.assertEqual(Path(root, 'honey/runtime.py').read_text(encoding="utf-8"), 'current = True\n')
+            self.assertEqual(Path(root, 'honey/new.py').read_text(encoding="utf-8"), 'new = True\n')
             self.assertFalse(Path(root, 'hooks/remove.py').exists())
             self.assertFalse(Path(root, 'honey/__pycache__/ignored.pyc').exists())
             return self.evaluate(root, pattern, out, eval_dir)
@@ -122,8 +122,8 @@ class RuntimeSnapshot(unittest.TestCase):
         self.assertEqual(self.git('show', p['branch'] + ':honey/runtime.py'), 'old = True')
         with mock('honey.install.sync', return_value=0):
             patch.accept(p)
-        self.assertEqual((self.root / 'honey/runtime.py').read_text(), 'current = True\n')
-        self.assertEqual((self.root / 'honey/new.py').read_text(), 'new = True\n')
+        self.assertEqual((self.root / 'honey/runtime.py').read_text(encoding="utf-8"), 'current = True\n')
+        self.assertEqual((self.root / 'honey/new.py').read_text(encoding="utf-8"), 'new = True\n')
         self.assertFalse((self.root / 'hooks/remove.py').exists())
 
     def test_runtime_drift_after_evaluation_blocks_application(self):
@@ -161,12 +161,12 @@ class RuntimeSnapshot(unittest.TestCase):
         self.write('docs/notes.md', 'Keep my notes\n')
         with mock('honey.install.sync', return_value=0):
             patch.accept(p)
-        self.assertEqual((self.root / 'docs/notes.md').read_text(), 'Keep my notes\n')
+        self.assertEqual((self.root / 'docs/notes.md').read_text(encoding="utf-8"), 'Keep my notes\n')
 
 
     def test_evaluator_runtime_mutation_is_not_accepted_as_snapshot_proof(self):
         def evaluate(root, pattern, out, eval_dir="evals"):
-            Path(root, 'honey/runtime.py').write_text('modified_during_eval = True\n')
+            Path(root, 'honey/runtime.py').write_text('modified_during_eval = True\n', encoding="utf-8")
             return self.evaluate(root, pattern, out, eval_dir)
         with self.assertRaisesRegex(ValueError, 'runtime.*changed|snapshot'):
             self.draft(evaluate)
@@ -180,7 +180,7 @@ class RuntimeSnapshot(unittest.TestCase):
                 result = self.evaluate(root, pattern, out, eval_dir)
                 calls.append(root)
                 if len(calls) == target_arm:
-                    Path(root, 'skills/debug/SKILL.md').write_text('Untested replacement after scoring.')
+                    Path(root, 'skills/debug/SKILL.md').write_text('Untested replacement after scoring.', encoding="utf-8")
                 return result
             with self.subTest(arm=target_arm), self.assertRaisesRegex(ValueError, 'target.*changed'):
                 self.draft(evaluate)

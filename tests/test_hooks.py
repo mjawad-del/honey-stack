@@ -71,7 +71,7 @@ assert "decision" not in r and "paused" in ctx_text(r), r
 
 # events recorded with redaction; outcome attributed
 import glob
-rows = [json.loads(l) for f in glob.glob(os.path.join(H, "events", "*", "claude-s1.jsonl")) for l in open(f)]
+rows = [json.loads(l) for f in glob.glob(os.path.join(H, "events", "*", "claude-s1.jsonl")) for l in open(f, encoding="utf-8")]
 kinds = [r["e"] for r in rows]
 assert "start" in kinds and "guard" in kinds and "receipt_gap" in kinds and "note" in kinds, kinds
 assert any(r["e"] == "skill_outcome" and r["outcome"] == "neg" for r in rows), [r for r in rows if r["e"].startswith("skill")]

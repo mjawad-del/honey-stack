@@ -16,13 +16,15 @@ honey-stack combines the best of [Superpowers](https://github.com/obra/superpowe
 
 ## Quick start
 
-Needs Claude Code and/or Codex, `python3` 3.9+ and `git` on macOS or Linux.
+Needs Claude Code and/or Codex, `python3` 3.9+ and `git` on macOS, Linux or Windows.
 
 **1. Install.** This clones the repo and shows a dry run; then run the install command it prints.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/umararshad4/honey-stack/main/install.sh | bash
 ```
+
+Windows (PowerShell): `irm https://raw.githubusercontent.com/umararshad4/honey-stack/main/install.ps1 | iex`
 
 **2. Activate.** Claude Code: start a new session or run `/reload-plugins`. Codex: open `/hooks` and trust the honey entries.
 

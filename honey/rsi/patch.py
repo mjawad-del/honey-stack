@@ -36,7 +36,7 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hunks",
 
 def git(*args, cwd=None, check=True):
     cwd = paths.source_repo() if cwd is None else cwd
-    r = subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, timeout=120)
+    r = subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     if check and r.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()[-300:]}")
     return r.stdout.strip()
@@ -114,20 +114,20 @@ def write_case(root: str, skill: str, case: dict) -> str:
         if not node:
             raise ValueError("node is required to validate evaluator regexes")
         check = subprocess.run([node, "-e", "new RegExp(process.argv[1], 'i')", pattern],
-                               capture_output=True, text=True, timeout=10)
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
         if check.returncode:
             raise ValueError("invalid evaluator regex: " + pattern[:120])
     name = f"rsi-{skill}-{time.time_ns()}"
     d = os.path.join(root, "evals", name, "graders")
     os.makedirs(d, exist_ok=True)
-    with open(os.path.join(root, "evals", name, "prompt.md"), "w") as f:
+    with open(os.path.join(root, "evals", name, "prompt.md"), "w", encoding="utf-8") as f:
         f.write(f"---\nmax_turns: 4\ntags: [rsi, {skill}]\nallowed_tools: [Read, Glob, Grep, Skill]\n---\n\n{case['prompt'].strip()}\n")
     rx = '"skill"\\s*:\\s*"(?:[\\w-]+:)?' + re.escape(skill) + '"'
     fire = f"---\ntype: tool_used\ntool: Skill\ninput_match: '{rx}'\n" + ("" if case["should_fire"] else "min: 0\nmax: 0\n") + "arm: both\n---\n"
-    with open(os.path.join(d, "trigger.md"), "w") as f:
+    with open(os.path.join(d, "trigger.md"), "w", encoding="utf-8") as f:
         f.write(fire)
     if pattern:
-        with open(os.path.join(d, "reply.md"), "w") as f:
+        with open(os.path.join(d, "reply.md"), "w", encoding="utf-8") as f:
             f.write(f"---\ntype: regex\npattern: {json.dumps(pattern)}\nflags: i\n---\n")
     return name
 
@@ -150,7 +150,7 @@ def run_eval(root: str, glob_: str, out: str, eval_dir: str = "evals") -> dict:
         command += ["--max-cost-usd", str(EVAL_USD)]
     if eval_dir != "evals":
         command += ["--eval-dir", eval_dir, "--scaffold", "--allow-tools", "Bash", "Write", "Edit"]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=900, env=env)
+    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900, env=env)
     d = store.read_json(out, {}) or {}
     _settle(reservation, d.get("costUsd"), False)
     if result.returncode not in (0, 1) or d.get("partial") or not d.get("cases"):
@@ -297,7 +297,7 @@ def _runtime_files(root: str) -> dict:
     def add(fp):
         if os.path.islink(fp):
             raise ValueError("runtime snapshot cannot include symlinks: " + os.path.relpath(fp, root))
-        relative = os.path.relpath(fp, root)
+        relative = os.path.relpath(fp, root).replace(os.sep, "/")  # keys match "skills/<name>/SKILL.md" on Windows too
         if os.path.isfile(fp) and not relative.endswith((".pyc", ".pyo")):
             with open(fp, "rb") as stream:
                 files[relative] = (os.stat(fp).st_mode & 0o777, stream.read())

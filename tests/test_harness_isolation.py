@@ -15,7 +15,7 @@ class HarnessIsolation(unittest.TestCase):
         for key in ('HONEY_HOME', 'HONEY_FAKE_LLM', 'HONEY_NO_AUTOUPDATE'):
             env.pop(key, None)
         code = "import helpers,os,json; print(json.dumps([os.environ['HONEY_HOME'],os.path.isfile(os.environ['HONEY_FAKE_LLM']),os.environ['HONEY_NO_AUTOUPDATE']]))"
-        result = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True, text=True, check=True)
+        result = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True, text=True, encoding='utf-8', check=True)
         path, fake, disabled = json.loads(result.stdout)
         self.assertNotEqual(Path(path), Path.home() / '.honey')
         self.assertTrue(fake)
