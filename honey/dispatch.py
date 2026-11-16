@@ -175,7 +175,7 @@ def pre_tool(ctx) -> dict:
         return {}
     cmd = event['command']
     from honey import guard
-    reason, sev = guard.check(cmd)
+    reason, sev = guard.check(cmd, event.get('cwd') or ctx.payload.get('cwd'))
     if not reason:
         from honey.rsi import guards as learned
         msg, action = learned.check(cmd if isinstance(cmd, str) else str(cmd), ctx.state.get("last_prompt", ""))

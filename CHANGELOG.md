@@ -10,6 +10,9 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- guard: `rm -rf` and `find -delete` no longer warn on absolute paths strictly inside the tool call's working directory or a temp dir (#55, #58). The directory itself, `<root>/*`, `..` escapes, siblings, home and `/` still warn. Heredoc bodies are data unless a shell consumes them (`bash <<EOF`, `| sh`, `eval "$(cat <<EOF`, unquoted-delimiter `$( )`). Quoted, commented or unterminated heredocs and `$'...'` prefixes keep their lines under inspection, nesting is capped at depth 8, and drive-letter or backslash Windows paths compare the same way.
+
 ## [1.2.0] - 2026-11-16
 
 ### Added

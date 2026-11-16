@@ -35,6 +35,10 @@ for mode in ("default", "bypassPermissions"):
     assert "permissionDecision" not in g and "honey guard (advisory)" in g["additionalContext"], g
 assert hook("codex", pre) == {}
 assert hook("claude", dict(pre, tool_input={"command": 'echo "rm -rf /"'})) == {}
+# absolute cleanup inside the payload cwd is not flagged; outside it still is (#55, #58)
+ws_rm = dict(pre, cwd="/Users/dev/code/app", tool_input={"command": "rm -rf /Users/dev/code/app/dist"})
+assert hook("claude", ws_rm) == {}
+assert "honey guard (advisory)" in ctx_text(hook("claude", dict(ws_rm, tool_input={"command": "rm -rf /Users/dev/code"})))
 
 # stop is never blocked: Q&A turn, edit turn without receipt, edit turn with receipt
 hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="what does this function do"))
