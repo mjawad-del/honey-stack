@@ -10,6 +10,12 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-16
+
+### Changed
+- fix(ci): choose the test matrix per event; exclude can't filter an include-only matrix (#77)
+- perf(ci): split big unittest files across processes; use Apple's python3 on macOS (#75)
+
 ## [1.4.0] - 2026-11-16
 
 ### Added
@@ -303,7 +309,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/umararshad4/honey-stack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...v1.2.1
