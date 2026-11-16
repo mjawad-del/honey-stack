@@ -32,6 +32,8 @@ Writing every test first pins imagined behavior: signatures and data shapes inst
 4. **Refactor on green**, never on red. Candidates are in `references/refactoring.md`. Run the tests after each step. Done when: green after the last step.
 5. **Run the project's whole test command**, not only your file. Report every failure by name, including ones you did not cause. Done when: the full-suite output is read.
 
+**Reply:** the behaviors covered, each one's red-then-green run, the full-suite result, then the status block.
+
 ## Each test
 
 - Name the production change that would make it fail. It should be a bug (wrong branch, missing effect, bad boundary), not a decision like a constant's value or message wording.

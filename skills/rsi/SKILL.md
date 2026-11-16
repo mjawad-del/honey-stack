@@ -47,6 +47,7 @@ For the CLI subcommands below, run `honey rsi <sub>`. If `honey` isn't on PATH, 
    - the title or rule
    - one line on why, plus one evidence quote
    - the fix
+   - for a learning with a non-empty `enforce`, that line as is (the suggested check; it stays a prose rule until a proof is recorded with `honey rsi proof <id> "<evidence>" [--level test]`)
    - the options: **Apply**, **Edit** (the user's wording replaces it), **Skip** (ask again later), **Never** (never re-propose).
 4. Record each answer: `honey rsi decide <id> apply|edit|skip|never [--text "<user's wording>"]`.
 5. What Apply does depends on the item's `type`:

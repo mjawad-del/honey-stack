@@ -86,7 +86,8 @@ Done when: every line is true or recorded.
 Answer the user's question first: for a coverage or yes/no question, state the answer and its limits before the evidence. Close an execution report with the receipt line; a read-only lookup does not need an execution receipt:
 
 ```
+Verdict: VERIFIED | NOT VERIFIED | INCONCLUSIVE
 Checks run: <cmd> pass, <cmd> fail (<n>). Skipped: <check> (<concrete reason>). Risk: <thing>.
 ```
 
-Name failures as failures, including pre-existing ones you saw. Leave out empty parts.
+VERIFIED means every claim has fresh passing evidence from this turn; any failing check is NOT VERIFIED; a check that could not run, or output you could not read, is INCONCLUSIVE, never a pass. Name failures as failures, including pre-existing ones you saw. Leave out empty parts.

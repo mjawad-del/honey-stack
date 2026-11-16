@@ -12,7 +12,7 @@ import time
 from honey import metrics, paths
 from honey.rsi import signals, store, text
 
-BRIEF_MAX = 1500
+BRIEF_MAX = 1100  # keeps rules + brief near 4 KB per session start
 MAX_ACTIVE_GLOBAL, MAX_ACTIVE_PROJECT, MAX_SKILL_LINES = 25, 10, 12
 STALE_DAYS, ARCHIVE_DAYS, USER_STATED_MULT, CANDIDATE_EXPIRE_DAYS = 30, 90, 2, 45
 MATCH = 0.6
@@ -165,6 +165,89 @@ def forget(bid: str) -> bool:
 
 def get(bid: str):
     return next((b for b in load() if b.get("id") == bid), None)
+
+
+# ---- enforcers: encode repeated lessons into structure (type > lint > test > guard > prose last) ---------------
+
+ENFORCER_LEVELS = ("type", "lint", "test", "guard", "prose")
+ENFORCER_REPEAT = 2  # sessions (or violations) before a learning earns a structural suggestion
+_ENFORCER_HINTS = (
+    ("guard", re.compile(r"\b(shell|command|commands|bash|zsh|terminal|cli|git|sudo|rm|npm|pnpm|yarn|pip|push|force|script)\b", re.I),
+     "Add a honey guard that warns before the command this rule describes."),
+    ("test", re.compile(r"\b(tests?|regressions?|broken|breaks?|bug|fail(s|ed|ing)?|crash(es)?)\b", re.I),
+     "Add a regression test that fails on the recorded mistake."),
+    ("lint", re.compile(r"\b(format(ting)?|style|naming|names?|lint|indent(ation)?|casing|whitespace|imports?)\b", re.I),
+     "Add a lint/format check whose error message names the fix."),
+)
+
+
+def enforcer(b: dict) -> dict:
+    """The learning's enforcer, normalized. Missing or malformed data is a prose rule.
+
+    `applied` is the gate: "structure" only when a non-prose check has `proof` (it was shown failing on the recorded
+    mistake). Without proof the learning stays a prose rule, whatever the stored data claims."""
+    e = b.get("enforcer") if isinstance(b.get("enforcer"), dict) else {}
+    level = e.get("level") if e.get("level") in ENFORCER_LEVELS else "prose"
+    proof = str(e.get("proof") or "").strip()[:200]
+    return {"level": level, "suggestion": str(e.get("suggestion") or "").strip()[:160], "proof": proof,
+            "applied": "structure" if level != "prose" and proof else "prose"}
+
+
+def suggest_enforcer(b: dict) -> dict:
+    """Deterministic level for a learning: shell/command → guard, broken behavior → test, style → lint, else prose."""
+    blob = f"{b.get('when', '')} {b.get('then', '')} {b.get('why', '')}"
+    for level, pattern, suggestion in _ENFORCER_HINTS:
+        if pattern.search(blob):
+            return {"level": level, "suggestion": suggestion}
+    return {"level": "prose", "suggestion": ""}
+
+
+def repeated(b: dict) -> bool:
+    return len(b.get("sessions", [])) >= ENFORCER_REPEAT or b.get("violations", 0) >= ENFORCER_REPEAT
+
+
+def attach_enforcer(b: dict) -> None:
+    """Suggest an enforcer for a repeated learning that has none; re-apply the proof gate to any stored one."""
+    stored = b.get("enforcer") if isinstance(b.get("enforcer"), dict) else None
+    unproven_prose = stored is not None and enforcer(b)["level"] == "prose" and not enforcer(b)["proof"]
+    if stored is None or unproven_prose:
+        if not repeated(b):
+            if stored is not None:
+                b["enforcer"] = enforcer(b)
+            return
+        if stored is None or suggest_enforcer(b)["level"] != "prose":
+            b["enforcer"] = suggest_enforcer(b)
+    b["enforcer"] = enforcer(b)
+
+
+def record_proof(bid: str, proof: str, level: str = ""):
+    """Record that the learning's check was shown failing on the recorded mistake. Returns the enforcer, or None
+    for an unknown id. A prose-level learning needs `level` (type, lint, test or guard) to become structure."""
+    proof = text.redact(" ".join((proof or "").split()), 200)
+    if not proof:
+        return None
+    with store.lock():
+        rows = load()
+        b = next((r for r in rows if r.get("id") == bid), None)
+        if b is None:
+            return None
+        e = enforcer(b) if isinstance(b.get("enforcer"), dict) else suggest_enforcer(b)
+        if level in ENFORCER_LEVELS:
+            e["level"] = level
+        b["enforcer"] = enforcer({"enforcer": {"level": e["level"], "suggestion": e.get("suggestion", ""), "proof": proof}})
+        b["updated"] = text.now()
+        save(rows)
+        return b["enforcer"]
+
+
+def enforcer_line(b: dict) -> str:
+    """One short display line for review, or "" for a plain prose rule. Never part of the injected brief."""
+    e = enforcer(b)
+    if e["level"] == "prose" and not e["suggestion"]:
+        return ""
+    gate = "structure, proof recorded" if e["applied"] == "structure" else (
+        "prose rule" if e["level"] == "prose" else "prose until proof")
+    return f"enforce: {e['level']} - {e['suggestion'] or '(no check yet)'} ({gate})"
 
 
 def line(b: dict) -> str:
@@ -393,8 +476,17 @@ def apply_reflection(result: dict, key: str, ids_map: dict, meta: dict) -> dict:
                 for k in ("helpful", "harmful", "relevant"):
                     b[k] = target.get(k, 0)
                 b["sessions"] = sorted(set(b["sessions"]) | set(target.get("sessions", [])))
+                if isinstance(target.get("enforcer"), dict):
+                    b["enforcer"] = dict(target["enforcer"])  # a recorded proof survives a reworded rule
             rows.append(b)
             by_id[b["id"]] = b
+            target = b
+        proposed = c.get("enforcer") if isinstance(c.get("enforcer"), dict) else {}
+        if proposed.get("level") in ENFORCER_LEVELS and repeated(target) and not isinstance(target.get("enforcer"), dict):
+            suggestion = text.redact(str(proposed.get("suggestion") or ""), 160)
+            if not text.injection_hit(suggestion):  # the reflector proposes; it can never supply proof
+                target["enforcer"] = enforcer({"enforcer": {"level": proposed["level"], "suggestion": suggestion}})
+        attach_enforcer(target)
         stats["candidates"] += 1
     for lab in (result or {}).get("bullet_labels", [])[:25]:
         b = by_id.get(lab.get("id", ""))
@@ -450,6 +542,8 @@ def maintain() -> dict:
     events = {}
     for b in rows:
         st = b.get("status")
+        if st in ("active", "candidate", "proposed", "stale"):
+            attach_enforcer(b)
         last = max(b.get("last_evidence") or "", b.get("last_relevant") or "") or b.get("created", now)
         age = _days(last)
         user = b.get("source") == "user-stated"

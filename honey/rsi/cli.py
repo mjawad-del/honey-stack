@@ -88,6 +88,9 @@ def why(bid, as_json=False):
     print(curate.line(b)[2:])
     print(f"  status={b['status']} scope={b['scope']} source={b['source']} severity={b.get('severity')}")
     print(f"  helpful={b.get('helpful',0)} harmful={b.get('harmful',0)} violations={b.get('violations',0)} sessions={len(b.get('sessions',[]))}")
+    enforce = curate.enforcer_line(b)
+    if enforce:
+        print(f"  {enforce}")
     for e in b.get("evidence", [])[-5:]:
         print(f"  evidence {e.get('ts','')} {e.get('sid','')}: {e.get('q','')}")
     for p in b.get("prev", []):
@@ -99,6 +102,8 @@ def list_review(as_json=False):
     review.audit()
     items = review.pending()
     proposed = [b for b in curate.load() if b.get("status") == "proposed"]
+    for b in proposed:
+        b["enforce"] = curate.enforcer_line(b)
     if as_json:
         return _print({"proposals": items, "proposed_learnings": proposed, "autonomous": autonomy.enabled(),
                        "recent_autonomy": store.read_json(paths.path("state", "autonomy-last.json"), {}) or {},
@@ -119,6 +124,8 @@ def list_review(as_json=False):
             print(f"    GitHub issue: {issue.get('url') or issue.get('error') or issue.get('state')}")
     for b in proposed:
         print(f"[{b['id']}] learning: {curate.line(b)[2:]}  (sessions={len(b.get('sessions', []))})")
+        if b["enforce"]:
+            print(f"    {b['enforce']}")
 
 
 def _golden(b, action):
@@ -208,6 +215,10 @@ def main(args) -> int:
         s = sub.add_parser(name)
         s.add_argument("id")
         s.add_argument("--json", action="store_true")
+    s = sub.add_parser("proof", help="Record that a learning's check fails on the recorded mistake")
+    s.add_argument("id")
+    s.add_argument("evidence", nargs="+")
+    s.add_argument("--level", choices=[l for l in curate.ENFORCER_LEVELS if l != "prose"], default="")
     s = sub.add_parser("decide")
     s.add_argument("id")
     s.add_argument("action", choices=["apply", "edit", "skip", "never"])
@@ -267,6 +278,16 @@ def main(args) -> int:
     elif a.cmd == "forget":
         print(f"{a.id} archived and added to never-list" if curate.forget(a.id) else f"no learning {a.id}")
         store.git_commit(f"rsi: forget {a.id}")
+    elif a.cmd == "proof":
+        if not " ".join(a.evidence).strip():
+            print("proof needs evidence: the command or output that showed the check failing on the mistake")
+            return 1
+        e = curate.record_proof(a.id, " ".join(a.evidence), a.level)
+        if e is None:
+            print(f"no learning {a.id}")
+            return 1
+        print(f"{a.id}: {e['level']} check recorded ({'structure' if e['applied'] == 'structure' else 'still prose: pass --level'})")
+        store.git_commit(f"rsi: proof {a.id}")
     elif a.cmd == "decide":
         decide(a.id, a.action, a.text)
     elif a.cmd == "note":

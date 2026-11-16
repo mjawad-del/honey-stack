@@ -51,6 +51,8 @@ Run `git push`, adding `-u origin <branch>` the first time. On the default branc
 
 4. **Open it** with `gh pr create --base <base> --title "<title>" --body-file <file>`, and pass `--draft` if the user asked for a draft. Done when: `gh pr view` prints the URL, and you report it.
 
+**Reply:** commit SHA, branch, PR link, and merged or open, as the status block's `Shipped:` line. Say "open, not merged" plainly when it is.
+
 ## Merge conflict
 
 1. **Read the state.** Run `git status` to see which operation is in progress (merge, rebase or cherry-pick) and which files conflict. Use `git log --merge --oneline` to list the commits behind each side.

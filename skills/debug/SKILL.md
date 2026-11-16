@@ -83,7 +83,7 @@ Done when: the regression test (or the loop) went red before the fix and green a
 - [ ] `grep -rn "DEBUG-a4f2" .` finds nothing.
 - [ ] Throwaway harnesses are deleted or moved to a clearly marked debug location.
 
-Report the symptom, the root cause (the hypothesis that survived), the fix with `file:line`, and the red-then-green output. If the deciding fact took a deep dig, propose the cheap, always-on signal (a log line, an assertion, a clearer error) that would have shown it at first look.
+**Reply:** the symptom, the root cause (the hypothesis that survived), the fix with `file:line`, and the red-then-green output. If the deciding fact took a deep dig, propose the cheap, always-on signal (a log line, an assertion, a clearer error) that would have shown it at first look.
 
 ## Perf branch
 

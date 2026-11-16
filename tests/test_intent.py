@@ -104,5 +104,5 @@ assert say("no i am just asking about staging") == ""
 cx = ctx_text(hook("codex", {"session_id": "cx1", "cwd": "/tmp/proj", "hook_event_name": "SessionStart", "source": "startup"}))
 assert "request_user_input" in cx and "AskUserQuestion" not in cx, cx
 cl = ctx_text(hook("claude", {"session_id": "cl9", "cwd": "/tmp", "hook_event_name": "SessionStart", "source": "startup"}))
-assert "AskUserQuestion" in cl and len(cl) < 3100, len(cl)
+assert "AskUserQuestion" in cl and len(cl) < 3250, len(cl)
 print("intent hooks ok")

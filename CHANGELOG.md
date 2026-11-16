@@ -10,6 +10,16 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Added
+- RSI encodes repeated lessons into structure: a learning seen in 2+ sessions gets a suggested `enforcer` (`type`, `lint`, `test`, `guard` or `prose`, plus a one-line check), shown by `honey rsi review` and `why`. The reflector may propose one; it stays a prose rule until a `proof` shows the check failing on the recorded mistake. Old learnings read as prose, and the injected brief is unchanged. `honey rsi proof <id> "<evidence>" [--level test]` records the proof that turns the suggestion into structure.
+
+### Changed
+- Every work turn ends with one status block: `Asks`, `Shipped` (branch, PR, merged or open), `Verdict: VERIFIED | NOT VERIFIED | INCONCLUSIVE` and `Checks run`. A done claim under a non-VERIFIED verdict is recorded as a `verdict` gap for RSI.
+- After loading a workflow skill the agent copies its numbered steps into its todo list verbatim, keeping steps that don't apply as `n/a: <reason>`. debug, tdd, ship and execute end with a fixed `Reply:` shape; verify defines the three verdicts.
+- Subagents treat their brief's bar as the whole bar (no extra scope, gates or review rounds) and make reversible choices instead of asking.
+- RSI no longer counts runs of `?` as frustration; they were mostly emphasis on status questions.
+- The learned brief is capped at 1.1 KB (was 1.5 KB), and the always-on rules stay under their 3.1 KB budget with the additions.
+
 ## [1.4.1] - 2026-11-16
 
 ### Changed

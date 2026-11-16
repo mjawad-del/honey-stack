@@ -22,8 +22,9 @@ CORR_ANY = re.compile(
 STILL = re.compile(
     r"\b(?:still (?:not|broken|failing|fails|wrong|the same|happening|there|doesn'?t|isn'?t|getting)"
     r"|(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not) work(?:ing)?|same (?:error|issue|problem|bug)|broke(?:n)? again|it'?s back)\b", re.I)
-# "??" alone is how many people ask an ordinary question; only a long run counts as frustration.
-FRUSTRATION = re.compile(r"\?{4,}|!{3,}|\b(?:wtf|ugh+|ffs|seriously|come on|omg)\b", re.I)
+# Question marks of any length are emphasis on a question ("done????"), not anger: in one user's
+# 1,846 prompts most "????" runs were status checks. Blame phrasing is caught by CORR_ANY instead.
+FRUSTRATION = re.compile(r"!{3,}|\b(?:wtf|ugh+|ffs|seriously|come on|omg)\b", re.I)
 ACCEPT = re.compile(r"^\s*(?:perfect|great|nice|awesome|excellent|thanks?(?: you)?|ty|lgtm|looks (?:good|great)|works(?: now| great)?"
                     r"|that works|ship it|exactly|love it|well done)\b[\s.!]*$", re.I)
 CONTINUE = re.compile(r"^\s*(?:continue|go on|keep going|proceed|carry on|next|go ahead|do it|yes(?:,? (?:do it|go|please|proceed))?"

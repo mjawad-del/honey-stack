@@ -42,6 +42,7 @@ Ran:
 - `npx -y react-doctor@latest . --verbose --diff` → score <n> (<+/-n vs base>), top issue: <file:line, rule>
 Skipped: <check> (<concrete reason>)
 Risk: <what stays unproven>
+Verdict: VERIFIED | NOT VERIFIED | INCONCLUSIVE
 Checks run: <cmd> pass, <cmd> fail (<n>). Skipped: <check> (<reason>). Risk: <thing>.
 ```
 

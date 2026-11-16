@@ -25,5 +25,6 @@ print("signals ok")
 
 # "??" is an ordinary question for many users; long runs and blame phrasing still count
 assert s.classify("do you know about this ticket just tell me ??") == []
-assert "frustration" in s.classify("are these changes done????")
+assert s.classify("are these changes done????") == []  # emphasis on a status question, not anger
+assert "frustration" in s.classify("this is broken again!!!")
 assert "correction" in s.classify("bro you couldn't figure that out first why???")

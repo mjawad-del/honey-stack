@@ -11,7 +11,7 @@ How honey learns from sessions, applies improvements and publishes them. Back to
 
 | Tier | Changes | Who decides |
 |---|---|---|
-| 0 | Learned rules in each session's brief (≤1.5 KB) | Automatic |
+| 0 | Learned rules in each session's brief (≤1.1 KB) | Automatic |
 | 1 | Instruction edits and known toolkit repairs, with backups | You, or autonomous RSI |
 | 2 | Skill patches and new skills that pass regression evaluations | You, or autonomous RSI |
 | 3 | Enforced guards (≤1% false positives on replay) | You, or autonomous RSI |

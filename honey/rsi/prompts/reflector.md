@@ -15,3 +15,4 @@ Rules:
 10. toolkit_misfires: a hook, injection or rule of the toolkit itself that caused friction.
 11. progress: domains (short tags like "git-delivery", "react-state", "debugging") where the user is growing (fewer corrections, cleaner asks) or repeating (the same correction class again).
 12. At most 5 candidates. An empty candidates list with a none_reason is a valid and common answer.
+13. enforcer: null for a first-time lesson. When the same mistake repeats (an update to an existing rule, or a "repeating" domain), propose the strongest check that would have caught it — level type > lint (its error names the fix) > test > guard (shell commands) > prose last — and a one-line suggestion for that check.

@@ -11,8 +11,12 @@ out = hook("claude", dict(C, hook_event_name="SessionStart", source="startup"))
 boot = ctx_text(out)
 assert boot.startswith("honey-stack active · mode=direct"), boot[:80]
 assert "honey:debug" in boot and "$debug" not in boot
-assert "begin every reply to the user with `🍯 HONEY · direct`" in boot, boot[:400]
-assert len(boot) < 3100, len(boot)  # always-on budget; trade words before raising it
+assert "on its own first line" in boot and "`🍯 HONEY · direct`" in boot, boot[:400]
+# Always-on budget; trade words before raising it. Raised 3100 → 3250 for the status block and the steps rule,
+# paid for by the learned brief cap (curate.BRIEF_MAX 1500 → 1100): rules + brief still shrink per session start.
+assert len(boot) < 3250, len(boot)
+from honey.rsi import curate as _curate
+assert len(boot) + _curate.BRIEF_MAX < 3100 + 1500, len(boot) + _curate.BRIEF_MAX
 
 # harness text never triggers anything (the MCT-router bug class)
 assert hook("claude", dict(C, hook_event_name="UserPromptSubmit", prompt="<task-notification>MCT done remember: x</task-notification>")) == {}

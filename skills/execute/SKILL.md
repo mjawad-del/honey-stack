@@ -81,4 +81,4 @@ Done when: every diff was read in the main thread and the broad checks ran.
 
 ## 6. Report
 
-In order: items done, items blocked (with their evidence), every `Ruling:` line from this run (all of them, so the user can undo any), Minor findings, then the receipt. If the user asked for commits, make one per verified item.
+In order: items done, items blocked (with their evidence), every `Ruling:` line from this run (all of them, so the user can undo any), Minor findings, then the status block (`Asks`, `Shipped`, `Verdict`, `Checks run`). If the user asked for commits, make one per verified item.
