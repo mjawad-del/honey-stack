@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-17
+
 ### Added
 - RSI encodes repeated lessons into structure: a learning seen in 2+ sessions gets a suggested `enforcer` (`type`, `lint`, `test`, `guard` or `prose`, plus a one-line check), shown by `honey rsi review` and `why`. The reflector may propose one; it stays a prose rule until a `proof` shows the check failing on the recorded mistake. Old learnings read as prose, and the injected brief is unchanged. `honey rsi proof <id> "<evidence>" [--level test]` records the proof that turns the suggestion into structure.
 
@@ -319,7 +321,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/umararshad4/honey-stack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/umararshad4/honey-stack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/umararshad4/honey-stack/compare/v1.2.1...v1.3.0
