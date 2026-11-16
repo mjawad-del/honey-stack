@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-16
+
 ### Added
 - intent loop: the always-on rules now ask once, with the host's question tool (`AskUserQuestion` / `request_user_input`), when a misread (answer vs act, scope, target) would mean a redo; otherwise guesses are tagged `(my guess)`. Requests with several asks end with `Asks: 1 done · 2 partial (why)`.
 - intent hints (`honey/intent.py`), all advisory and pattern-gated: an answer-only hint for "just asking" prompts; a reconcile hint for listed asks, plus a one-shot nudge when an edit turn skips it; a replay of the session ask log for "all the changes I asked done?" and after compaction; stated terms ("i told you X means Y", "by X I mean Y") saved as project learnings.
@@ -265,7 +267,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/umararshad4/honey-stack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/umararshad4/honey-stack/compare/v0.18.3...v1.0.0
 [0.18.3]: https://github.com/umararshad4/honey-stack/compare/v0.18.2...v0.18.3
 [0.18.2]: https://github.com/umararshad4/honey-stack/compare/v0.18.1...v0.18.2
