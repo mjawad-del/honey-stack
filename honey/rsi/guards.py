@@ -5,12 +5,11 @@ commands from the violating sessions and on ≤1% of 200 recent commands from ot
 """
 from __future__ import annotations
 
-import glob
 import os
 import re
 
 from honey import paths
-from honey.rsi import curate, review, store, text
+from honey.rsi import store, text
 
 MIN_VIOLATIONS, FP_MAX, FP_SAMPLE = 2, 0.01, 200
 
@@ -45,6 +44,7 @@ def fired(gid: str) -> None:
 
 
 def _commands(sessions: set = None, exclude: set = None) -> list:
+    import glob
     out = []
     for fp in sorted(glob.glob(paths.path("events", "*", "*.jsonl")), key=os.path.getmtime, reverse=True):
         key = os.path.basename(fp)[:-6]
@@ -65,6 +65,7 @@ SYSTEM = ("You turn a coding agent's repeatedly violated rule into a shell-comma
 
 
 def propose_all() -> list:
+    from honey.rsi import curate, review
     from honey.rsi import reflect
     out = []
     existing = {g.get("bullet") for g in load()}

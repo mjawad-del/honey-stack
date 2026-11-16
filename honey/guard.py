@@ -14,7 +14,6 @@ import os
 import posixpath
 import re
 import shlex
-import tempfile
 
 HOME_PREFIXES = ("~", "$HOME", "${HOME}", "$USERPROFILE", "${USERPROFILE}", "%USERPROFILE%")
 DRIVE_RE = re.compile(r"^[A-Za-z]:(?:[\\/]|$)")  # Windows drive paths: C:/, C:\, bare C:
@@ -52,6 +51,7 @@ def _deep_enough(root: str, parts: int) -> bool:
 
 
 def _temp_roots() -> set[str]:
+    import tempfile  # only when an absolute rm/find target needs it: tempfile pulls shutil, lzma and zstd
     roots = {"/tmp", "/private/tmp", tempfile.gettempdir(), os.environ.get("TMPDIR", ""), os.environ.get("TEMP", "")}
     # A temp variable set to `/` or `C:\` must not exempt the whole disk.
     return {r for r in (_norm(r) for r in roots if r and _is_abs(r)) if _deep_enough(r, 1)}

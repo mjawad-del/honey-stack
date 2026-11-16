@@ -4,16 +4,20 @@ from __future__ import annotations
 import os
 import re
 import shlex
-import subprocess
 import sys
 import time
 
 from honey import paths
-from honey.rsi import signals, store, text
+from honey.rsi import store, text
 
 WINDOW = 3  # user turns after a skill fires during which the first signal decides its outcome
 QUARANTINE_TOOLS = re.compile(r"^(?:WebFetch|WebSearch|web_search|mcp__.*)$")
 SKILL_READ = re.compile(r"/skills/([\w:-]{1,60})/SKILL\.md")
+
+
+def _signals():
+    from honey.rsi import signals  # 18 regexes; most tool calls never need them
+    return signals
 
 
 def events_file(key: str) -> str:
@@ -46,13 +50,13 @@ def skill_invoked(ctx, name: str, by: str, via: str) -> None:
 
 def attribution(ctx, prompt: str, sig: list) -> dict:
     """A task match is required; explicit skill references may resolve a multi-skill task."""
-    kind = signals.feedback_kind(prompt, sig)
+    kind = _signals().feedback_kind(prompt, sig)
     task = (ctx.state.get("task") or {}).get("id")
     turn = ctx.state.get("turn", 0)
     eligible = [p for p in ctx.state.get("pending_skills", [])
                 if 1 <= turn - p["t"] <= WINDOW and p.get("task") == task]
-    named = [p["name"].split(':')[-1] for p in eligible if signals.mentions_skill(prompt, p["name"])]
-    references = signals.referenced_skills(prompt)
+    named = [p["name"].split(':')[-1] for p in eligible if _signals().mentions_skill(prompt, p["name"])]
+    references = _signals().referenced_skills(prompt)
     choices = set(named if named or references else ([p["name"].split(':')[-1] for p in eligible] if task else []))
     if references - set(named):
         choices = set()
@@ -101,11 +105,11 @@ def attribute(ctx, sig: list, prompt: str = "", feedback=None) -> None:
 def user_prompt(ctx, prompt: str, sig: list) -> None:
     if ctx.state.get("off") or ctx.state.get("rsi_off"):
         return
-    origin = signals.origin(prompt)
+    origin = _signals().origin(prompt)
     if origin == "system":
         return
     q = text.redact(prompt, 300) if origin == "user" else None
-    prev = ctx.state.get("tail") if sig and set(sig) & (signals.NEGATIVE | {"error_paste"}) else None
+    prev = ctx.state.get("tail") if sig and set(sig) & (_signals().NEGATIVE | {"error_paste"}) else None
     feedback = attribution(ctx, prompt, sig)
     record(ctx, "prompt", origin=origin, len=len(prompt or ""), sig=sig, q=q, prev=prev,
            kw=text.keywords(q or ""), xc=True if origin == "user" and text.injection_hit(prompt) else None, **feedback)
@@ -114,7 +118,7 @@ def user_prompt(ctx, prompt: str, sig: list) -> None:
 
 def user_skill_mentions(ctx, prompt: str) -> None:
     """Record explicit invocations after the dispatcher advances the current task."""
-    if ctx.state.get("off") or ctx.state.get("rsi_off") or signals.origin(prompt) == "system":
+    if ctx.state.get("off") or ctx.state.get("rsi_off") or _signals().origin(prompt) == "system":
         return
     for m in re.finditer(r"(?:^|\s)\$([a-z][\w-]{1,40})\b", prompt or ""):
         if ctx.agent == "codex":
@@ -152,7 +156,7 @@ def tool_used(ctx, payload: dict, event=None) -> None:
                     match = SKILL_READ.search(arg)
                     if match:
                         skill_invoked(ctx, match.group(1), 'model', 'skill_md')
-        if signals.REVERT_CMD.search(cmd) and ctx.state.get("pending_skills"):
+        if ctx.state.get("pending_skills") and _signals().REVERT_CMD.search(cmd):
             record(ctx, "signal", sig=["revert"])
             attribute(ctx, ["revert"])
     fp = event.get("path")
@@ -166,6 +170,7 @@ def tool_used(ctx, payload: dict, event=None) -> None:
 
 def spawn(args: list) -> None:
     """Fire-and-forget child in its own session so it outlives the hook (SessionEnd has a ~1.5 s budget)."""
+    import subprocess
     env = dict(os.environ, RSI_CHILD="1", HONEY_OFF="1")
     log = open(store.ensure_dir(paths.path("logs")) + "/jobs.log", "ab")
     subprocess.Popen([sys.executable, os.path.join(paths.REPO, "bin", "honey"), *args], stdin=subprocess.DEVNULL,

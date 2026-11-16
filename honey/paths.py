@@ -1,11 +1,9 @@
 """Filesystem locations. Everything honey writes lives under HONEY_HOME (default ~/.honey)."""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
-import subprocess
 
 REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -20,6 +18,7 @@ def path(*parts: str) -> str:
 
 def source_checkout(candidate, own=False):
     """Validate an editable Honey checkout, never an installed plugin cache."""
+    import subprocess
     if not isinstance(candidate, str) or not os.path.isabs(candidate):
         return None
     root = os.path.realpath(candidate)
@@ -69,6 +68,8 @@ def session_key(agent: str, sid: str) -> str:
 
 def project_slug(cwd: str) -> str:
     """owner-repo from the git remote, else the repo/dir basename. One git call, cached by caller."""
+    import hashlib
+    import subprocess
     cwd = cwd or os.getcwd()
     try:
         out = subprocess.run(["git", "-C", cwd, "remote", "get-url", "origin"],

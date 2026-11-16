@@ -92,6 +92,10 @@ class NotesUnderLock(Isolated):
             worker.join()
         self.assertEqual(merged, 'queued')
         self.assertEqual(curate.load(), [])
+        text, ids = curate.brief('claude', '')  # the next session sees the note before any job drains the queue
+        self.assertIn('run the tests first', text)
+        self.assertEqual(ids, [bullet['id']])
+        self.assertEqual(curate.load(), [], 'brief only reads the queue')
         with store.lock():
             self.assertEqual(curate.drain_pending_notes(), 1)
         saved = curate.load()

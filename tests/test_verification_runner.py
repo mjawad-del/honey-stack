@@ -173,5 +173,43 @@ class VerificationRunner(unittest.TestCase):
         self.assertNotEqual(verification.snapshot(str(tree / 'pkg')), before)
 
 
+    def test_snapshot_tracks_every_kind_of_change_without_writing_to_git(self):
+        from honey import verification
+        snap = lambda: verification.snapshot(str(self.project))
+        (self.project / '.gitignore').write_text('build/\n', encoding="utf-8")
+        (self.project / 'dir with space').mkdir()
+        (self.project / 'dir with space/naïve.py').write_text('a = 1\n', encoding="utf-8")
+        (self.project / 'link').symlink_to('source.py')
+        self.git('add', '.'); self.git('commit', '-qm', 'more')
+        objects = lambda: sorted(p.name for p in (self.project / '.git/objects').rglob('*') if p.is_file())
+        index = self.project / '.git/index'
+        seen, index_stat, before_objects = {snap()}, index.stat().st_mtime_ns, objects()
+
+        def changed(label):
+            digest = snap()
+            self.assertNotIn(digest, seen, label)
+            seen.add(digest)
+
+        src = self.project / 'source.py'
+        stat = src.stat()
+        src.write_text('value = 2\n', encoding="utf-8")            # same size, mtime restored: ctime still moves
+        os.utime(src, ns=(stat.st_atime_ns, stat.st_mtime_ns)); changed('same-size edit with restored mtime')
+        (self.project / 'dir with space/naïve.py').write_text('a = 22\n', encoding="utf-8"); changed('unicode path edit')
+        (self.project / 'new.txt').write_text('n\n', encoding="utf-8"); changed('untracked file')
+        (self.project / 'new.txt').write_text('m\n', encoding="utf-8"); changed('untracked edit')
+        (self.project / 'link').unlink(); (self.project / 'link').symlink_to('tests'); changed('symlink retarget')
+        (self.project / 'tests/check.py').unlink(); changed('tracked deletion')
+        self.assertEqual(index.stat().st_mtime_ns, index_stat, 'snapshot must not rewrite .git/index')
+        self.assertEqual(objects(), before_objects, 'snapshot must not write git objects')
+        self.git('add', 'new.txt'); changed('staged')
+        self.git('mv', 'source.py', 'moved.py'); changed('rename')
+        current = snap()
+        (self.project / 'build').mkdir(); (self.project / 'build/out.bin').write_bytes(b'x' * 10)
+        self.assertEqual(snap(), current, 'ignored files do not count')
+        if os.name != 'nt':  # Windows hashes every file with its timestamps (ctime there is creation time)
+            os.utime(self.project / '.gitignore'); self.assertEqual(snap(), current, 'touching a clean file is not a change')
+        self.git('commit', '-qm', 'next'); changed('commit')
+
+
 if __name__ == '__main__':
     unittest.main()

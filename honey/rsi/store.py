@@ -4,8 +4,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import subprocess
-import tempfile
 import time
 
 from honey import paths
@@ -55,9 +53,20 @@ def read_jsonl(file: str) -> list:
     return out
 
 
+def _mkstemp(directory: str):
+    """tempfile.mkstemp without importing tempfile (which pulls shutil, lzma and zstd into every hook)."""
+    for attempt in range(100):
+        tmp = os.path.join(directory, f".tmp-{os.getpid()}-{time.time_ns()}-{attempt}")
+        try:
+            return os.open(tmp, os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600), tmp
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"no unique temp name in {directory}")
+
+
 def write_json(file: str, obj, sort=False) -> None:
     ensure_dir(os.path.dirname(file))
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
+    fd, tmp = _mkstemp(os.path.dirname(file))
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1, sort_keys=sort)
         f.write("\n")
@@ -66,7 +75,7 @@ def write_json(file: str, obj, sort=False) -> None:
 
 def write_jsonl(file: str, rows: list) -> None:
     ensure_dir(os.path.dirname(file))
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
+    fd, tmp = _mkstemp(os.path.dirname(file))
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n")
@@ -83,7 +92,7 @@ def read_json(file: str, default=None):
 
 def write_text(file: str, text: str) -> None:
     ensure_dir(os.path.dirname(file))
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(file), prefix=".tmp-")
+    fd, tmp = _mkstemp(os.path.dirname(file))
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
         f.write(text)
     replace(tmp, file)
@@ -131,6 +140,7 @@ def git_commit(message: str) -> bool:
     ensure_dir(h)
 
     def git(*args):
+        import subprocess
         return subprocess.run(["git", "-C", h, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
 
     if not os.path.isdir(os.path.join(h, ".git")):

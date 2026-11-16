@@ -1,7 +1,6 @@
 """Redaction, injection scan, keywords and similarity. Everything RSI stores passes through redact()."""
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import time
@@ -83,6 +82,7 @@ def jaccard(a: str, b: str) -> float:
 
 
 def short_id(prefix: str, seed: str) -> str:
+    import hashlib
     return prefix + "-" + hashlib.sha1(f"{seed}{time.time_ns()}".encode()).hexdigest()[:6]
 
 

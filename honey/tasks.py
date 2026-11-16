@@ -1,8 +1,6 @@
 """Bounded task intent and observed checks. These records never grant tool permissions."""
 from __future__ import annotations
 
-import argparse
-import hashlib
 import json
 import os
 import re
@@ -10,7 +8,8 @@ import shlex
 import time
 
 from honey import paths
-from honey.rsi import signals, store, text
+from honey.hashing import sha256
+from honey.rsi import store, text
 
 CHECKS = {'code': ['verification'], 'generic': ['verification'],
           'uninstall': ['application', 'helpers', 'startup', 'preserved-data'],
@@ -80,6 +79,7 @@ def advance(ctx, prompt):
     imperative = direct or any(IMPERATIVE.match(part) for part in re.split(r'[.?!\n;]+', prompt))
     question = bool(QUESTION.search(prompt)) and not imperative
     has_action = direct or bool(ACTION.search(prompt))
+    from honey.rsi import signals
     continuation = bool(set(signals.classify(prompt)) & {'continue', 'accept'}) or bool(FOLLOWUP.match(prompt))
     # An explicit read-only request holds until the user asks for an action; "yes"/"continue" only
     # unlocks inspection that came from a question.
@@ -181,7 +181,7 @@ def _outcome(task, fingerprint, status):
 
 def _tracked(task, command):
     return (command_kind(command) == 'check'
-            or hashlib.sha256((command or '').encode()).hexdigest() in task.get('check_outcomes', {}))
+            or sha256((command or '').encode()).hexdigest() in task.get('check_outcomes', {}))
 
 
 def _invalidate(ctx, task, preserve_runner=False):
@@ -205,7 +205,7 @@ def start_tool(ctx, event):
             del starts[next(iter(starts))]
     if (_tracked(task, event.get('command'))
             and _absolute(event.get('cwd') or ctx.payload.get('cwd') or task['cwd'], task['cwd']) == task['cwd']):
-        _outcome(task, hashlib.sha256(event['command'].encode()).hexdigest(), 'unknown')
+        _outcome(task, sha256(event['command'].encode()).hexdigest(), 'unknown')
     ctx.dirty = True
 
 
@@ -226,7 +226,7 @@ def record_tool(ctx, event):
     if event.get('kind') == 'shell' and event.get('exit_code') is None and not event.get('error'):
         if (_tracked(task, event.get('command'))
                 and _absolute(event.get('cwd') or ctx.payload.get('cwd') or task['cwd'], task['cwd']) == task['cwd']):
-            fingerprint = hashlib.sha256(event['command'].encode()).hexdigest()
+            fingerprint = sha256(event['command'].encode()).hexdigest()
             _outcome(task, fingerprint, 'unknown')
             ctx.dirty = True
         elif command_kind(event.get('command')) != 'read':
@@ -250,7 +250,7 @@ def record_tool(ctx, event):
     good = (event.get('exit_code') == 0 and not event.get('error') and event.get('supported')
             and cwd == task['cwd'] and fresh)
     item = {'id': call_id, 'mutation': task['mutation'], 'success': bool(good),
-            'command': text.redact(cmd, 160), 'fingerprint': hashlib.sha256(cmd.encode()).hexdigest(), 'cwd': cwd}
+            'command': text.redact(cmd, 160), 'fingerprint': sha256(cmd.encode()).hexdigest(), 'cwd': cwd}
     if call_id:
         task['calls'] = (task['calls'] + [item])[-40:]
     if _tracked(task, cmd) and cwd == task['cwd']:
@@ -286,6 +286,7 @@ def missing(state):
 
 
 def main(argv):
+    import argparse
     p = argparse.ArgumentParser(prog='honey task')
     p.add_argument('action', choices=['status', 'set', 'verify', 'run'])
     p.add_argument('--agent', choices=['claude', 'codex'], default='codex')

@@ -10,6 +10,10 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Changed
+- Faster tool-call hooks: PreToolUse/PostToolUse drop from ~55 ms to ~31 ms per call (measured on an M1 Pro, about 180 calls a session), and prompt and stop hooks from ~55 ms to ~36 ms. Per-event modules (autoupdate, intent, receipt, curate, review, signals) and heavy stdlib modules (tempfile, hashlib's OpenSSL backend, argparse, traceback, glob) now load only where they are used. `tests/test_hook_imports.py` fails if they creep back into the tool-call path.
+- The verification snapshot is read-only and 1.3-2.1x faster: HEAD, the index and `git status` pin clean files, and only changed or untracked files are hashed (`--no-optional-locks`, so `.git/index` is never rewritten). Touching a file without changing it no longer invalidates a recorded check. Windows keeps the full scan, since its ctime doesn't move on writes. Checks recorded before the upgrade need one rerun.
+
 ## [1.2.1] - 2026-11-16
 
 ### Fixed

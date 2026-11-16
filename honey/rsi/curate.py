@@ -174,7 +174,12 @@ def line(b: dict) -> str:
 
 def brief(agent: str, project: str) -> tuple:
     """(text, [ids]) for this agent+project, most important first, ≤ BRIEF_MAX chars. Empty when nothing learned."""
-    active = [b for b in load() if b.get("status") == "active"]
+    rows = load()
+    queue = paths.path("pending-notes.jsonl")
+    if os.path.exists(queue):  # notes queued while a job held the lock count now, not after the next drain
+        for rec in store.read_jsonl(queue):
+            _save_note(rows, dict(rec))  # in memory only; drain_pending_notes() persists them under the lock
+    active = [b for b in rows if b.get("status") == "active"]
     scopes = (("global", "user"), (f"project:{project}",), (f"agent:{agent}",))
     caps = (MAX_ACTIVE_GLOBAL, 5, 5)
     body, ids, size = [], [], len(BRIEF_HEAD) + len(BRIEF_TAIL)

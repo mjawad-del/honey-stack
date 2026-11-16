@@ -84,7 +84,11 @@ assert "remove the database" not in say("is everything I asked for done?")
 # a stated term is saved as a project learning and shows in the next session's brief
 t = say("i told you before that ship means merged too")
 assert "saved" in t and "ship" in t and "rsi forget" in t, t
-rows = [json.loads(l) for l in open(os.path.join(H, "ledger.jsonl"), encoding="utf-8")]
+rows = []
+for name in ("ledger.jsonl", "pending-notes.jsonl"):  # queued when a SessionStart job still holds the RSI lock
+    if os.path.exists(os.path.join(H, name)):
+        with open(os.path.join(H, name), encoding="utf-8") as f:
+            rows += [json.loads(l) for l in f if l.strip()]
 row = next(r for r in rows if "ship" in r["when"])
 assert row["scope"].startswith("project:") and "proj" in row["scope"] and "merged too" in row["then"], row
 nxt = ctx_text(hook("claude", {"session_id": "intent2", "cwd": "/tmp/proj", "hook_event_name": "SessionStart", "source": "startup"}))

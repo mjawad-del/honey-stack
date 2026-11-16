@@ -14,19 +14,45 @@ from honey.rsi import store, text
 CONTENT_LIMIT = 64 * 1024 * 1024  # beyond this, files are tracked by size and timestamps only
 
 
+def _status_paths(status: bytes) -> list:
+    """Worktree-side paths from `git status --porcelain=v2 -z` (changed, renamed, unmerged, untracked)."""
+    paths, entries, i = [], status.split(b'\0'), 0
+    while i < len(entries):
+        entry = entries[i]
+        i += 1
+        if entry[:2] == b'1 ':
+            paths.append(entry.split(b' ', 8)[8])
+        elif entry[:2] == b'2 ':
+            paths.append(entry.split(b' ', 9)[9])
+            i += 1  # the original path of the rename/copy follows as its own entry
+        elif entry[:2] == b'u ':
+            paths.append(entry.split(b' ', 10)[10])
+        elif entry[:2] == b'? ':
+            paths.append(entry[2:])
+    return paths
+
+
 def snapshot(cwd):
     """Digest of the Git working tree that contains cwd (worktrees and subfolders included).
 
-    Symlinks are hashed by their target path, not followed. Large trees still get a digest:
-    after CONTENT_LIMIT bytes, files contribute metadata (size, mtime, ctime) instead of content.
+    HEAD, the index (blob ids) and `git status` pin every clean file; only files git reports as changed or
+    untracked are hashed here. git's stat cache includes ctime, which writes always move, so it is the
+    same check `git status` makes. Read-only: --no-optional-locks keeps git from refreshing .git/index.
+    Windows ctime is creation time (writes don't move it), so there every tracked and untracked file is hashed.
+    Symlinks are hashed by their target path, not followed. Past CONTENT_LIMIT bytes of changed files,
+    files contribute metadata (size, mtime, ctime) instead of content.
     """
     def git(where, *args):
-        return subprocess.run(['git', '-C', where, *args], capture_output=True, check=True).stdout
+        return subprocess.run(['git', '--no-optional-locks', '-C', where, *args], capture_output=True, check=True).stdout
     root = os.path.realpath(os.fsdecode(git(cwd, 'rev-parse', '--show-toplevel')).strip())
-    digest = hashlib.sha256(git(root, 'rev-parse', 'HEAD') + git(root, 'ls-files', '--stage', '-z'))
-    names = sorted(set(git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0')) - {b''})
+    status = git(root, 'status', '--porcelain=v2', '-z', '--untracked-files=all', '--ignore-submodules=none')
+    digest = hashlib.sha256(git(root, 'rev-parse', 'HEAD') + git(root, 'ls-files', '--stage', '-z') + status)
     total = 0
-    for name in names:
+    if os.name == 'nt':
+        names = set(git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0')) - {b''}
+    else:
+        names = set(_status_paths(status))
+    for name in sorted(names):
         path = os.path.join(root, os.fsdecode(name))
         digest.update(name + b'\0')
         if os.path.islink(path):

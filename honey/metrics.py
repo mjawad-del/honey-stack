@@ -1,10 +1,11 @@
 """Bounded, descriptive tool metrics. Repetition is a review signal, not proof of waste."""
 from __future__ import annotations
 
-import hashlib
 import math
 import os
 import shlex
+
+from honey.hashing import sha256
 
 MAX_SEEN = 128
 MAX_FINGERPRINTS = 64
@@ -13,7 +14,7 @@ FIELDS = ("tool_calls", "completed_calls", "failed_calls", "duration_samples", "
 
 
 def _hash(value):
-    return hashlib.sha256(value.encode("utf-8", "replace")).hexdigest()[:24]
+    return sha256(value.encode("utf-8", "replace")).hexdigest()[:24]
 
 
 def _category(event):

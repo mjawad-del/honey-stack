@@ -1,7 +1,6 @@
 """Bounded delivery heartbeats and read-only diagnostics for one actual session."""
 from __future__ import annotations
 
-import glob
 import json
 import math
 import os
@@ -73,6 +72,7 @@ def _bundle(path):
 
 
 def _installation(agent):
+    import glob
     root = paths.codex_dir() if agent == 'codex' else paths.claude_dir()
     candidates = glob.glob(os.path.join(root, 'plugins', 'cache', 'honey-stack', 'honey', '*'))
     if agent == 'claude':

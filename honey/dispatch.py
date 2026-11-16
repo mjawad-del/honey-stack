@@ -4,15 +4,15 @@ Fail-open: any exception is logged to ~/.honey/logs/hook-errors.log and the hook
 """
 from __future__ import annotations
 
-import json
 import os
-import random
 import re
 import time
-import traceback
 
-from honey import autoupdate, health, hookio, intent, modes, paths, receipt, tasks, tool_events
-from honey.rsi import curate, observe, review, signals, store, text
+# Only what every event needs loads here. Per-event modules (autoupdate, intent, receipt, curate, signals,
+# review, random) import inside their handlers: a tool-call hook runs ~180 times a session, and loading
+# everything up front cost ~30 ms per call.
+from honey import health, hookio, modes, paths, tasks, tool_events
+from honey.rsi import observe, store, text
 
 EDIT_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "apply_patch", "ApplyPatch"}
 _RSI_CMD = re.compile(r"^[/$]?(?:honey:)?rsi\s+(off|on)[.!\s]*$", re.I)
@@ -47,6 +47,11 @@ def _init_state(ctx) -> None:
 
 
 def session_start(ctx) -> dict:
+    from honey import autoupdate
+    from honey.rsi import curate
+    from honey import intent
+    import random
+    from honey.rsi import review
     _init_state(ctx)
     src = ctx.payload.get("source", "startup")
     if src == "startup" or "brief" not in ctx.state:
@@ -106,6 +111,9 @@ def _prune_states() -> None:
 
 
 def user_prompt(ctx) -> dict:
+    from honey.rsi import curate
+    from honey import intent
+    from honey.rsi import signals
     _init_state(ctx)
     prompt = ctx.payload.get("prompt", "") or ""
     org = signals.origin(prompt)
@@ -225,6 +233,7 @@ def post_tool(ctx) -> dict:
         observe.tool_used(ctx, ctx.payload, event)
         ctx.dirty = True
         if tool == "Skill" and isinstance(ti, dict) and not out:
+            from honey.rsi import curate
             notes = curate.skill_notes(ti.get("skill", ""))
             if notes:
                 out = hookio.context("PostToolUse", notes)
@@ -232,6 +241,9 @@ def post_tool(ctx) -> dict:
 
 
 def stop(ctx) -> dict:
+    from honey import intent
+    from honey import receipt
+    from honey.rsi import signals
     _init_state(ctx)
     msg = ctx.payload.get("last_assistant_message") or ""
     st = signals.classify_stop(msg)
@@ -297,6 +309,7 @@ def run(agent: str) -> int:
         hookio.emit(handle(agent, payload))
     except Exception:
         try:
+            import traceback
             store.ensure_dir(paths.path("logs"))
             with open(paths.path("logs", "hook-errors.log"), "a", encoding="utf-8") as f:
                 f.write(f"{text.now()} {agent}\n{traceback.format_exc()[-2000:]}\n")
