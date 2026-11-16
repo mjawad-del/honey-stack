@@ -10,6 +10,8 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-16
+
 ### Added
 - Windows support. `install.ps1` is a PowerShell one-line installer. File locks use `msvcrt` when `fcntl` is unavailable, atomic writes retry briefly while Windows holds the target open, `~/.local/bin/honey` is a launcher file instead of a symlink, detached RSI jobs open no console window, and the dangerous-command guard treats `C:/` and `$USERPROFILE` paths as absolute. CI runs the test suite on `windows-latest`. RSI's autonomous skill patching isn't supported on Windows yet.
 
@@ -273,7 +275,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/umararshad4/honey-stack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/umararshad4/honey-stack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/umararshad4/honey-stack/compare/v0.18.3...v1.0.0
 [0.18.3]: https://github.com/umararshad4/honey-stack/compare/v0.18.2...v0.18.3
