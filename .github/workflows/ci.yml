@@ -14,17 +14,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 4 jobs, not 6: macOS runners are the scarce ones. macOS keeps 3.9 (the python3 Apple ships),
-        # Ubuntu covers both ends, Windows runs current Python. ubuntu-latest (26.04) has no 3.9 build.
-        include:
-          - {os: ubuntu-24.04, python: "3.9"}
-          - {os: ubuntu-24.04, python: "3.12"}
-          - {os: macos-latest, python: "system"}  # Apple's /usr/bin/python3 (3.9): what macOS users run; no 24 s download
-          - {os: windows-latest, python: "3.12"}
-        # macOS runs only on pushes to main: PR macOS jobs sat 15+ min in GitHub's runner queue and timed out
-        # without a single step. Ubuntu 3.9 covers the Python floor on PRs; main still gates the release on macOS.
-        exclude:
-          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
+        # Ubuntu covers both Python ends, Windows runs current Python (ubuntu-latest 26.04 has no 3.9 build).
+        # macOS (Apple's /usr/bin/python3, 3.9: what macOS users run) only on pushes to main: on PRs it sat 15+ min
+        # in GitHub's runner queue and timed out before a single step. main still gates the release on it.
+        # The list is chosen per event because `exclude` can't filter an include-only matrix.
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"os":"ubuntu-24.04","python":"3.9"},{"os":"ubuntu-24.04","python":"3.12"},{"os":"windows-latest","python":"3.12"}]' || '[{"os":"ubuntu-24.04","python":"3.9"},{"os":"ubuntu-24.04","python":"3.12"},{"os":"macos-latest","python":"system"},{"os":"windows-latest","python":"3.12"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
