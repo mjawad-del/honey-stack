@@ -5,13 +5,22 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  # A new push to a PR cancels that PR's older run; main pushes each keep their own run (the release needs them).
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest, windows-latest]  # ubuntu-latest (26.04) has no Python 3.9 build
-        python: ["3.9", "3.12"]
+        # 4 jobs, not 6: macOS runners are the scarce ones. macOS keeps 3.9 (the python3 Apple ships),
+        # Ubuntu covers both ends, Windows runs current Python. ubuntu-latest (26.04) has no 3.9 build.
+        include:
+          - {os: ubuntu-24.04, python: "3.9"}
+          - {os: ubuntu-24.04, python: "3.12"}
+          - {os: macos-latest, python: "3.9"}
+          - {os: windows-latest, python: "3.12"}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
