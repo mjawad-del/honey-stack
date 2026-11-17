@@ -132,9 +132,12 @@ def main(argv: list) -> int:
             r = _run(["git", "add", "--", *a.paths])
             if r.returncode != 0:
                 return _fail(r.stderr.strip() or "git add failed", 2)
-        if _run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+        if _run(["git", "diff", "--cached", "--quiet", "--", *a.paths]).returncode == 0:
             return _fail("nothing staged; name the paths to ship", 2)
-        r = _run(["git", "commit", "-q", "-F", "-"], input=_message(a))
+        cmd = ["git", "commit", "-q", "-F", "-"]
+        if a.paths:
+            cmd += ["--only", "--", *a.paths]
+        r = _run(cmd, input=_message(a))
         if r.returncode != 0:
             return _fail("commit failed (a hook may have rejected it); nothing pushed\n" + (r.stdout + r.stderr).strip())
         print(f"committed {_git('rev-parse', '--short', 'HEAD')} {a.message.strip()}", flush=True)

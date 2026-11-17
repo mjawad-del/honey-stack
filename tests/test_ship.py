@@ -76,6 +76,48 @@ class Ship(unittest.TestCase):
         body = Path(create[create.index("--body-file") + 1])
         self.assertFalse(body.exists())  # temp body file is cleaned up
 
+    def test_named_paths_preserve_unrelated_staged_and_unstaged_work(self):
+        (self.repo / "unrelated.txt").write_text("staged work\n", encoding="utf-8")
+        self.git("add", "unrelated.txt")
+        (self.repo / "unrelated.txt").write_text("later unstaged work\n", encoding="utf-8")
+        index = self.git("show", ":unrelated.txt")
+        (self.repo / "b.txt").write_text("requested\n", encoding="utf-8")
+        r = self.ship("-m", "fix: b only", "b.txt")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), "b.txt")
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "unrelated.txt")
+        self.assertEqual(self.git("show", ":unrelated.txt"), index)
+        self.assertEqual((self.repo / "unrelated.txt").read_text(encoding="utf-8"), "later unstaged work\n")
+
+    def test_unchanged_named_path_does_not_commit_unrelated_index(self):
+        (self.repo / "unrelated.txt").write_text("staged work\n", encoding="utf-8")
+        self.git("add", "unrelated.txt")
+        head = self.git("rev-parse", "HEAD")
+        r = self.ship("-m", "fix: unchanged a", "a.txt")
+        self.assertEqual(r.returncode, 2, r.stderr + r.stdout)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "unrelated.txt")
+
+    def test_named_directory_and_deletion_leave_other_staged_work_alone(self):
+        (self.repo / "a.txt").unlink()
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "b.txt").write_text("requested\n", encoding="utf-8")
+        (self.repo / "unrelated.txt").write_text("staged\n", encoding="utf-8")
+        self.git("add", "unrelated.txt")
+        r = self.ship("-m", "fix: replace a", "a.txt", "src")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD").splitlines(), ["a.txt", "src/b.txt"])
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "unrelated.txt")
+
+    def test_no_paths_commits_existing_index_without_staging_worktree(self):
+        (self.repo / "a.txt").write_text("staged\n", encoding="utf-8")
+        self.git("add", "a.txt")
+        (self.repo / "a.txt").write_text("unstaged\n", encoding="utf-8")
+        r = self.ship("-m", "fix: staged a")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertEqual(self.git("show", "HEAD:a.txt"), "staged")
+        self.assertEqual((self.repo / "a.txt").read_text(encoding="utf-8"), "unstaged\n")
+
     def test_branch_tracking_main_pushes_to_its_own_name(self):
         self.git("switch", "-q", "-c", "feat/y", "--track", "origin/main")
         (self.repo / "b.txt").write_text("b\n")

@@ -58,6 +58,7 @@ honey ship test                                                               # 
 
 - **Any branch on your remote can be the target** (`main`, `staging`, `release/2.0`, ...). A word that is a file is committed; a word that is both is refused.
 - **Safe by default:** stages only the files you name, commits nothing if `--check` fails, refuses to commit on the default branch, never force-pushes, and reuses an open PR instead of opening a second.
+- **Named paths stay scoped.** A commit with paths includes only those paths; unrelated staged and unstaged work stays in place. With no paths, `-m` commits the existing index.
 - **No `-m`?** It ships commits you already made and fills the PR from them. Uncommitted changes always need a subject.
 
 ### Fast by default
