@@ -54,7 +54,7 @@ def update_checkout(repo: str) -> dict:
     top = _git(repo, "rev-parse", "--show-toplevel").stdout.strip()
     if not top or os.path.realpath(top) != os.path.realpath(repo):
         return {"status": "skipped", "reason": "not honey-stack's own git root"}  # a copy inside someone else's repo
-    if _git(repo, "fetch", "--tags", "--quiet", "origin").returncode != 0:
+    if _git(repo, "fetch", "--tags", "--quiet", "origin", "+refs/heads/main:refs/remotes/origin/main").returncode != 0:
         return {"status": "skipped", "reason": "fetch failed (offline?)"}
     releases = _release_tags(repo)
     if not releases:
@@ -69,6 +69,9 @@ def update_checkout(repo: str) -> dict:
     if _git(repo, "merge-base", "--is-ancestor", newest, "HEAD").returncode == 0:
         if _git(repo, "merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main").returncode != 0:
             return {"status": "skipped", "reason": "checkout has its own commits (not a fast-forward)"}
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        if head != _git(repo, "rev-parse", newest + "^{commit}").stdout.strip():
+            return {"status": "skipped", "reason": "checkout is not at a matching release tag"}
         return {"status": "current"}
     behind = [t for t in releases if _git(repo, "merge-base", "--is-ancestor", t, "HEAD").returncode == 0]
     current = behind[-1].lstrip("v") if behind else "?"

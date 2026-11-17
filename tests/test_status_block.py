@@ -35,6 +35,14 @@ class StatusBlock(unittest.TestCase):
         self.assertEqual(gap(msg)[0], "verdict")
         self.assertEqual(gap("Asks: 1 done · 2 not done\nVerdict: NOT VERIFIED")[0], "verdict")
 
+    def test_incomplete_asks_are_not_done_claims(self):
+        for status in ("not done", "not yet done"):
+            with self.subTest(status=status):
+                self.assertIsNone(gap(f"Asks: 1 {status}\nVerdict: NOT VERIFIED\nChecks run: none."))
+
+    def test_mixed_asks_still_detect_a_positive_done_claim(self):
+        self.assertEqual(gap("Asks: 1 not yet done · 2 done\nVerdict: INCONCLUSIVE")[0], "verdict")
+
     def test_status_line_words_are_not_claims(self):
         self.assertIsNone(gap("Changed the parser.\nVerdict: INCONCLUSIVE\nRisk: removed fallback untested."))
 

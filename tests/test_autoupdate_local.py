@@ -96,6 +96,71 @@ else:
         self.git(self.origin, "tag", "v1.1.0")
         return self.git(self.origin, "rev-parse", "HEAD")
 
+    def manual_update(self, source=None):
+        out = io.StringIO()
+        with patch.object(paths, "REPO", str(source or self.checkout)), contextlib.redirect_stdout(out):
+            code = install.update(install.Env())
+        return code, out.getvalue()
+
+    def test_manual_update_from_detached_release_refreshes_cache(self):
+        self.git(self.checkout, "checkout", "-q", "--detach", "v1.0.0")
+        new_head = self.release()
+        code, out = self.manual_update()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), new_head)
+        self.assertEqual((self.cache.parent / "1.1.0" / "installed-version").read_text(encoding="utf-8"), "1.1.0")
+
+    def test_manual_update_never_installs_unreleased_main(self):
+        release_head = self.release()
+        (self.origin / "unreleased.txt").write_text("not released", encoding="utf-8")
+        self.git(self.origin, "add", "unreleased.txt")
+        self.git(self.origin, "commit", "-qm", "unreleased main")
+        code, out = self.manual_update()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), release_head)
+        self.assertFalse((self.checkout / "unreleased.txt").exists())
+
+    def test_manual_update_does_not_refresh_an_unreleased_checkout(self):
+        (self.origin / "unreleased.txt").write_text("not released", encoding="utf-8")
+        self.git(self.origin, "add", "unreleased.txt")
+        self.git(self.origin, "commit", "-qm", "unreleased main")
+        self.git(self.checkout, "pull", "--ff-only", "-q")
+        head = self.git(self.checkout, "rev-parse", "HEAD")
+        code, out = self.manual_update()
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), head)
+        self.assertFalse((self.cache / "installed-version").exists())
+        self.assertIn("release tag", out)
+
+    def test_manual_update_resolves_source_from_installed_cache(self):
+        new_head = self.release()
+        code, out = self.manual_update(self.cache)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), new_head)
+        self.assertEqual(store.read_json(paths.path("synced.json"))["head"], new_head)
+
+    def test_manual_update_reports_cache_refresh_failure(self):
+        self.release()
+        (self.root / "fail-refresh").touch()
+        code, out = self.manual_update()
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(store.read_json(paths.path("synced.json"))["head"], self.old_head)
+
+    def test_manual_update_preserves_clean_feature_branch(self):
+        self.git(self.checkout, "switch", "-q", "-c", "feature")
+        self.release()
+        code, out = self.manual_update()
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), self.old_head)
+        self.assertIn("skipped", out)
+
+    def test_tag_only_fetch_configuration_still_finds_new_release(self):
+        self.git(self.checkout, "config", "remote.origin.fetch", "+refs/tags/v1.0.0:refs/tags/v1.0.0")
+        new_head = self.release()
+        result = autoupdate.update_checkout(str(self.checkout))
+        self.assertEqual(result["status"], "updated", result)
+        self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), new_head)
+
     def test_release_updates_checkout_and_installed_cache(self):
         new_head = self.release()
         result = autoupdate.run()
