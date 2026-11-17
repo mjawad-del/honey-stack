@@ -10,6 +10,11 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-17
+
+### Changed
+- fix: preserve staged work and correct release updates and verdict checks (#79)
+
 ## [1.5.0] - 2026-11-17
 
 ### Added
@@ -321,7 +326,8 @@ Six production-engineering skills, each with current (2026) reference files, dec
   - `/rsi coach`, `/rsi bootstrap`, the upstream radar, a golden suite and holdout sessions
 - `honey install | uninstall | doctor | sync`: dry-run first, recorded in a manifest, fully reversible.
 
-[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/umararshad4/honey-stack/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/umararshad4/honey-stack/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/umararshad4/honey-stack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/umararshad4/honey-stack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/umararshad4/honey-stack/compare/v1.3.0...v1.4.0
