@@ -544,7 +544,7 @@ def sync(env: Env) -> int:
     if head.returncode != 0 or not head.stdout.strip():
         print("cannot resolve Honey source HEAD")
         return 1
-    r = subprocess.run([exe, "plugin", "add", PLUGIN], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+    r = subprocess.run([exe, "plugin", "add", PLUGIN], cwd=source, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     print((r.stdout or r.stderr).strip())
     if r.returncode != 0:
         return r.returncode
@@ -554,17 +554,27 @@ def sync(env: Env) -> int:
 
 
 def update(env: Env) -> int:
-    """Pull the latest release into this checkout, then refresh Codex's copy. Claude reads the checkout directly."""
-    from honey import __version__ as before
-    r = subprocess.run(["git", "-C", paths.REPO, "pull", "--ff-only", "--tags", "-q"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
-    if r.returncode != 0:
-        print("git pull failed (local changes or diverged branch?):\n" + (r.stderr or r.stdout).strip())
+    """Install the newest release from the source checkout, then refresh Codex's copy."""
+    from honey import autoupdate
+    try:
+        source = paths.source_repo()
+    except RuntimeError as e:
+        print(f"update failed: {e}")
         return 1
-    after = re.search(r'__version__ = "([^"]+)"', _read(os.path.join(paths.REPO, "honey", "__init__.py")) or "")
-    after = after.group(1) if after else "?"
-    print(f"honey-stack {before} → {after}" if after != before else f"honey-stack {after} is already the latest")
+    result = autoupdate.update_checkout(source)
+    if result["status"] == "skipped":
+        print(f"update skipped: {result['reason']}")
+        return 1
+    if result["status"] == "updated":
+        print(f"honey-stack {result['from']} → {result['to']}")
+    else:
+        version = re.search(r'__version__ = "([^"]+)"', _read(os.path.join(source, "honey", "__init__.py")) or "")
+        print(f"honey-stack {version.group(1) if version else '?'} is already the latest")
     if _cli("codex"):
-        sync(env)
+        code = sync(env)
+        if code != 0:
+            print("Codex cache refresh failed; rerun honey update to retry.")
+            return code
     print("Claude: start a new session or run /reload-plugins to load it.")
     return 0
 
