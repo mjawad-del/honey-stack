@@ -5,7 +5,7 @@ How honey learns from sessions, applies improvements and publishes them. Back to
 ## How it learns
 
 1. **Observe:** hooks log bounded, redacted user requests, corrections, "still broken" and which skills fired. Feedback distinguishes behavior, requirements, preferences and environment failures. Task identity and explicit skill references guide attribution; ambiguous feedback remains uncertain instead of blaming every recent skill.
-2. **Reflect:** after a session with signal, a small model (Haiku via Claude, ~$0.002; else Codex) proposes evidence-backed WHEN → THEN rules. If one installed engine fails, the other is tried. Failed calls have their own daily cap and do not use up successful reflections; a session that fails three times in a row waits for new events instead of retrying forever.
+2. **Reflect:** after a session with signal, a small model (Haiku via Claude, ~$0.002; else Codex) proposes evidence-backed WHEN → THEN rules. If one installed engine fails, the other is tried. An engine whose account fails (sign-in, billing or usage limit) moves behind the other engine for 6 hours, and the daily failure cap counts each engine separately, so a broken primary account cannot stop a working fallback. Failed calls have their own daily cap and do not use up successful reflections; a session that fails three times in a row waits for new events instead of retrying forever.
 3. **Curate:** a rule goes live once 2 sessions back it; it goes stale after 30 days and is archived after 90.
 4. **Apply:** review mode queues changes for `/rsi review`. Autonomous mode applies supported changes after validation:
 

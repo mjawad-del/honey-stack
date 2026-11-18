@@ -10,6 +10,9 @@ Successful main CI automatically versions and publishes releases. Manual release
 
 ## [Unreleased]
 
+### Fixed
+- RSI reflection: a Claude account failure (sign-in, billing, usage limit) no longer stops reflection for the day. That engine moves behind Codex for 6 hours, and the daily failure cap now counts each engine separately.
+
 ## [1.5.1] - 2026-11-17
 
 ### Changed

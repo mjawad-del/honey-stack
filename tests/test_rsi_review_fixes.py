@@ -5,6 +5,7 @@ import os
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest.mock import patch as mock
 
@@ -70,6 +71,58 @@ class ReflectionQueue(Isolated):
         self.assertEqual((engine, calls), ('codex', ['claude', 'codex']))
         failures = [c for c in store.read_jsonl(paths.path('costs.jsonl')) if c.get('ok') is False]
         self.assertEqual([c['engine'] for c in failures], ['claude'])
+
+
+    def test_account_failure_is_tagged_and_sends_that_engine_to_the_back(self):
+        calls = []
+
+        def call(system, user, schema, max_usd, model='haiku', only=None):
+            calls.append(only)
+            if only == 'claude':
+                raise RuntimeError('claude -p failed: "api_error":"usage_limit_reached","result":"You\'ve hit your weekly limit"')
+            return {'candidates': []}, None, 'codex'
+
+        with mock.object(reflect, 'engines', return_value=[('claude', '/c'), ('codex', '/x')]), \
+                mock.object(reflect, 'call_llm', side_effect=call):
+            reflect.reflect_call('system', 'body', {}, 0.15)
+            failure = [c for c in store.read_jsonl(paths.path('costs.jsonl')) if c.get('ok') is False][-1]
+            self.assertEqual(failure.get('err'), 'account')
+            self.assertEqual([n for n, _ in reflect.healthy_engines()], ['codex', 'claude'])
+            calls.clear()
+            reflect.reflect_call('system', 'body', {}, 0.15)
+        self.assertEqual(calls, ['codex'])  # cooling-down engine is not retried while the fallback works
+
+    def test_transient_failure_keeps_engine_order(self):
+        store.append_jsonl(paths.path('costs.jsonl'), {'ts': text.now(), 'job': 'reflect', 'engine': 'claude',
+                                                       'usd': None, 'ok': False})
+        with mock.object(reflect, 'engines', return_value=[('claude', '/c'), ('codex', '/x')]):
+            self.assertEqual([n for n, _ in reflect.healthy_engines()], ['claude', 'codex'])
+
+    def test_broken_primary_does_not_spend_the_fallbacks_failure_cap(self):
+        for _ in range(reflect.BUDGETS['max_failed_reflections_per_day']):
+            store.append_jsonl(paths.path('costs.jsonl'), {'ts': text.now(), 'job': 'reflect', 'engine': 'claude',
+                                                           'usd': None, 'ok': False, 'err': 'account'})
+        self.assertEqual(reflect.budget_block('claude'), 'daily reflection failure cap')
+        self.assertIsNone(reflect.budget_block('codex'))
+
+
+    def test_untargeted_calls_skip_a_cooling_engine(self):
+        store.append_jsonl(paths.path('costs.jsonl'), {'ts': text.now(), 'job': 'reflect', 'engine': 'claude',
+                                                       'usd': None, 'ok': False, 'err': 'account'})
+        ran = []
+
+        def run(cmd, **kw):
+            ran.append(cmd[0])
+            with open(cmd[cmd.index('-o') + 1], 'w', encoding='utf-8') as f:
+                f.write('{}')
+            return types.SimpleNamespace(returncode=0, stdout='', stderr='')
+
+        with mock.dict(os.environ, {'HONEY_FAKE_LLM': ''}), \
+                mock.object(reflect, 'engines', return_value=[('claude', '/c'), ('codex', '/x')]), \
+                mock.object(reflect.subprocess, 'run', side_effect=run):
+            self.assertEqual(reflect.engine()[0], 'codex')
+            self.assertEqual(reflect.call_llm('s', 'u', {}, 0.05)[2], 'codex')
+        self.assertEqual(ran, ['/x'])
 
 
 class NotesUnderLock(Isolated):

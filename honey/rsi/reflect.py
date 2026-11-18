@@ -21,6 +21,9 @@ BUDGETS = {"reflection_usd": 0.15, "weekly_usd": 1.50, "monthly_usd": 5.00, "max
 MAX_PER_RUN = 3
 MAX_FAILURES = 3  # consecutive failed reflections before a session waits for new events
 IDLE_HOURS = 6
+COOLDOWN_HOURS = 6  # an engine with an account failure (auth, billing, usage limit) goes behind the others
+_ACCOUNT_ERRORS = ("authenticate", "oauth", "not logged in", "login", "usage_limit", "usage limit", "weekly limit",
+                   "rate limit", "rate_limit", "credit balance", "billing", "subscription", "payment", "quota", "429")
 
 
 def budgets() -> dict:
@@ -46,7 +49,10 @@ def budget_block(engine: str):
     # Failed calls (e.g. an account error) must not use up the day's successful reflections.
     if sum(1 for c in today_reflects if c.get("ok") is not False) >= b["max_reflections_per_day"]:
         return "daily reflection cap"
-    if sum(1 for c in today_reflects if c.get("ok") is False) >= b["max_failed_reflections_per_day"]:
+    # Per engine: a broken primary account must not spend a healthy fallback's failure allowance.
+    # Rows without an engine (older logs) count against every engine.
+    if sum(1 for c in today_reflects if c.get("ok") is False and c.get("engine") in (None, engine)) \
+            >= b["max_failed_reflections_per_day"]:
         return "daily reflection failure cap"
     if dollar_caps_enabled() and _spent(costs, 7) + b["reflection_usd"] > b["weekly_usd"]:
         return "weekly budget"
@@ -69,8 +75,22 @@ def engines() -> list:
     return found
 
 
-def engine() -> tuple:
+def _account_error(error) -> bool:
+    msg = str(error).lower()
+    return any(k in msg for k in _ACCOUNT_ERRORS)
+
+
+def healthy_engines() -> list:
+    """engines() with any engine that had an account failure in the last COOLDOWN_HOURS moved to the back."""
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - COOLDOWN_HOURS * 3600))
+    cooling = {c.get("engine") for c in store.read_jsonl(paths.path("costs.jsonl"))
+               if c.get("err") == "account" and c.get("ts", "") >= cutoff}
     found = engines()
+    return [e for e in found if e[0] not in cooling] + [e for e in found if e[0] in cooling]
+
+
+def engine() -> tuple:
+    found = healthy_engines()
     return found[0] if found else (None, None)
 
 
@@ -79,11 +99,11 @@ def _child_env() -> dict:
 
 
 def call_llm(system: str, user: str, schema: dict, max_usd: float, model: str = "haiku", only: str = None):
-    """(structured_output dict, usd, engine) using Claude if installed, else Codex (or just `only`). Raises on failure."""
+    """(structured_output dict, usd, engine) using the first healthy engine (or just `only`). Raises on failure."""
     if os.environ.get("HONEY_FAKE_LLM"):  # tests: canned reflector output, no paid call
         with open(os.environ["HONEY_FAKE_LLM"], encoding="utf-8") as f:
             return json.load(f), 0.0, "fake"
-    found = [e for e in engines() if only in (None, e[0])]
+    found = [e for e in healthy_engines() if only in (None, e[0])]
     if not found:
         raise RuntimeError(f"no {only or 'claude or codex'} CLI found")
     name, exe = found[0]
@@ -161,7 +181,7 @@ def due_sessions() -> list:
 
 def reflect_call(system: str, body: str, schema: dict, max_usd: float, key: str = ""):
     """Try each installed engine in order; record each failed attempt. Raises the last error if all fail."""
-    candidates, last = engines() or [(None, None)], None
+    candidates, last = healthy_engines() or [(None, None)], None
     for i, (name, _) in enumerate(candidates):
         if i and budget_block(name or ""):
             break
@@ -169,8 +189,10 @@ def reflect_call(system: str, body: str, schema: dict, max_usd: float, key: str 
             return call_llm(system, body, schema, max_usd, only=name)
         except Exception as e:
             last = e
-            store.append_jsonl(paths.path("costs.jsonl"), {"ts": text.now(), "job": "reflect", "engine": name,
-                                                           "usd": None, "sid": key, "ok": False})
+            row = {"ts": text.now(), "job": "reflect", "engine": name, "usd": None, "sid": key, "ok": False}
+            if _account_error(e):
+                row["err"] = "account"
+            store.append_jsonl(paths.path("costs.jsonl"), row)
     raise last
 
 
